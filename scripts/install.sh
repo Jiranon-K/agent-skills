@@ -84,6 +84,8 @@ for dir in scheduled/*/; do
 done
 
 copy_template loop/bin/loop-run.sh "$HOME/loop/bin/loop-run.sh"
+# loop-state holds no placeholders and is the protocol the runner and loop skills share: keep it current.
+link loop/bin/loop-state "$HOME/loop/bin/loop-state"
 
 [ "$dry" -eq 1 ] && echo "(dry run: nothing changed)"
 exit 0

@@ -16,7 +16,7 @@ skills/
   loop/          Loop Engineering (triage → work → review → ship)
   personal/      skills built with Claude for my own use
 claude/          ~/.claude: CLAUDE.md, AGENTS.md, statusline.sh, agents/
-loop/            ~/loop/bin/loop-run.sh, launchd job, spec.html
+loop/            ~/loop/bin/loop-run.sh, loop-state, launchd job, spec.html
 scheduled/       ~/.claude/scheduled-tasks: daily-standup, loop-summary
 plugins.md       plugins to install on a new machine
 scripts/install.sh
@@ -32,7 +32,7 @@ git clone git@github.com:Jiranon-K/agent-skills.git ~/Projects/agent-skills
 
 `install.sh` symlinks the generic skills, so `git pull` keeps them current. Your own
 setup — `claude/`, `loop/`, `scheduled/`, `skills/loop/` — is copied as a template
-only where nothing exists yet, and never overwritten. `--force` replaces existing
+only where nothing exists yet, and never overwritten. `loop/bin/loop-state` is the exception: it is symlinked, since the runner and loop skills share it. `--force` replaces existing
 generic skills only, moving the old ones to `~/.claude/backups/`.
 
 Then install the plugins in [`plugins.md`](plugins.md) and run `/team-context` once

@@ -1,0 +1,90 @@
+#!/bin/bash
+# The one owner of Loop ticket state and loop worktree paths. bash 3.2 compatible.
+# loop-run.sh and the loop skills call this instead of reading ~/loop/state/tickets/ themselves.
+#
+#   loop-state path <repo> <ticket>                  worktree path for a ticket
+#   loop-state get <ticket> [key]                    whole state (key=value lines) or one value; exit 1 if unknown
+#   loop-state set <ticket> <status> [key=value...]  write state; keys not given are kept
+#   loop-state list [status]                         one line per ticket: "<ticket> status=... repo=..."
+#   loop-state reset <ticket>                        remove state, and the worktree if it is clean and pushed
+#
+# Statuses: working blocked ready-to-ship mr-open merged. Keys: repo branch mr ui (yes|no).
+set -u
+
+LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
+WT_ROOT="${WT_ROOT:-$HOME/Projects/worktree}"
+TICKETS="$LOOP_DIR/state/tickets"
+STATUSES="working blocked ready-to-ship mr-open merged"
+KEYS="repo branch mr ui"
+
+die() { echo "loop-state: $*" >&2; exit 1; }
+is_one_of() { case " $2 " in *" $1 "*) return 0 ;; esac; return 1; }
+value() { [ -f "$TICKETS/$1" ] && sed -n "s/^$2=//p" "$TICKETS/$1" | head -n 1; }
+
+cmd_path() {
+  [ $# -eq 2 ] || die "usage: path <repo> <ticket>"
+  echo "$WT_ROOT/$1-$2"
+}
+
+cmd_get() {
+  [ $# -ge 1 ] && [ $# -le 2 ] || die "usage: get <ticket> [key]"
+  [ -f "$TICKETS/$1" ] || exit 1
+  if [ $# -eq 2 ]; then value "$1" "$2"; else cat "$TICKETS/$1"; fi
+}
+
+cmd_set() {
+  [ $# -ge 2 ] || die "usage: set <ticket> <status> [key=value...]"
+  local ticket="$1" status="$2" pair key val out
+  shift 2
+  is_one_of "$status" "$STATUSES" || die "unknown status '$status' (one of: $STATUSES)"
+  for pair in "$@"; do
+    key="${pair%%=*}"
+    [ "$key" != "$pair" ] && is_one_of "$key" "$KEYS" || die "unknown key in '$pair' (one of: $KEYS)"
+    [ "$key" != ui ] || is_one_of "${pair#*=}" "yes no" || die "ui must be yes or no"
+  done
+  out="status=$status"
+  for key in $KEYS; do
+    val=$(value "$ticket" "$key")
+    for pair in "$@"; do
+      [ "${pair%%=*}" = "$key" ] && val="${pair#*=}"
+    done
+    [ -n "$val" ] && out="$out
+$key=$val"
+  done
+  case "$out" in *"
+repo="*) ;; *) die "first set of $ticket needs repo=<repo>" ;; esac
+  mkdir -p "$TICKETS"
+  printf '%s\n' "$out" > "$TICKETS/$ticket.tmp" && mv "$TICKETS/$ticket.tmp" "$TICKETS/$ticket"
+}
+
+cmd_list() {
+  [ $# -le 1 ] || die "usage: list [status]"
+  [ $# -eq 0 ] || is_one_of "$1" "$STATUSES" || die "unknown status '$1' (one of: $STATUSES)"
+  local f
+  for f in "$TICKETS"/*; do
+    [ -f "$f" ] || continue
+    [ $# -eq 0 ] || [ "$(value "${f##*/}" status)" = "$1" ] || continue
+    echo "${f##*/} $(tr '\n' ' ' < "$f" | sed 's/ $//')"
+  done
+}
+
+cmd_reset() {
+  [ $# -eq 1 ] || die "usage: reset <ticket>"
+  [ -f "$TICKETS/$1" ] || die "no state for $1"
+  local wt main
+  wt=$(cmd_path "$(value "$1" repo)" "$1")
+  if [ -d "$wt" ]; then
+    [ -z "$(git -C "$wt" status --porcelain)" ] || die "$wt has uncommitted changes; not removed"
+    [ -z "$(git -C "$wt" rev-list HEAD --not --remotes)" ] || die "$wt has commits not on any remote; not removed"
+    main=$(cd "$wt" && cd "$(git rev-parse --git-common-dir)/.." && pwd)
+    git -C "$main" worktree remove "$wt" || die "could not remove $wt"
+  fi
+  rm "$TICKETS/$1"
+}
+
+cmd="${1:-}"
+[ $# -gt 0 ] && shift
+case "$cmd" in
+  path|get|set|list|reset) "cmd_$cmd" "$@" ;;
+  *) sed -n 5,11p "$0" >&2; exit 2 ;;
+esac

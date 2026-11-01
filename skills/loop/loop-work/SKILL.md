@@ -10,7 +10,7 @@ You run headless. Nobody answers questions. When something is unclear, stop with
 
 ## Hard rules (all phases)
 
-- Work only in the current directory. It must be under `~/Projects/.loop-worktrees/`; if not, stop with `RESULT: blocked: not in a loop worktree`.
+- Work only in the current directory. It must be under `~/Projects/worktree/`; if not, stop with `RESULT: blocked: not in a loop worktree`.
 - The repo's `CLAUDE.md` / `AGENTS.md` and the docs it points to win over this skill. Read them first.
 - Never read, print, or edit `.env*`. Never force-push, merge, rebase, or reset. Never touch another person's ticket or feature directory.
 - Stay in the ticket's scope. No unrelated refactors.

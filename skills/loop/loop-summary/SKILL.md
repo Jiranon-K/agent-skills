@@ -9,9 +9,9 @@ Show the user what the loop did since the last summary. Read-only except the mar
 
 1. Read the marker `~/loop/state/last-summary-seen` (format `YYYY-MM-DD HH:MM`). Missing → treat as today 00:00.
 2. Read `~/loop/summaries/<date>.md` for each date from the marker's date to today. Keep only `## HH:MM` sections later than the marker.
-3. Also read `~/loop/state/tickets/` (one file per ticket: `<status> <repo> [branch] [MR URL]`) for work in progress.
+3. Also run `~/loop/bin/loop-state list` (one line per ticket: `<ticket> status=… repo=… [branch=…] [mr=…]`) for work in progress.
 4. Reply:
    - No new sections → one line: `ไม่มีอะไรใหม่ตั้งแต่ <marker time>` plus one line of work in progress if any.
-   - Otherwise → paste the new sections in time order exactly as written (they already contain links), then one line `งานที่ค้าง:` listing ticket state files that are `working`, `ready-to-ship`, `mr-open`, or `blocked`, with their MR links.
+   - Otherwise → paste the new sections in time order exactly as written (they already contain links), then one line `งานที่ค้าง:` listing tickets that are `working`, `ready-to-ship`, `mr-open`, or `blocked`, with their MR links.
    Do not add questions that are not in the summaries. Do not re-ask old unanswered questions.
 5. Write the current time (`date "+%Y-%m-%d %H:%M"`) to `~/loop/state/last-summary-seen`.

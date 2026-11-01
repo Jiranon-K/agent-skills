@@ -7,7 +7,7 @@
 set -u
 
 LOOP_DIR="$HOME/loop"
-WT_ROOT="$HOME/Projects/worktree"
+STATE="$LOOP_DIR/bin/loop-state"   # owns ticket state and worktree paths
 # launchd has no user PATH; claude is a native install, glab/git/node come from Homebrew.
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -15,9 +15,8 @@ TODAY=$(date +%F)
 NOW=$(date +%H:%M)
 LOG="$LOOP_DIR/logs/$TODAY.md"
 LAST="$LOOP_DIR/state/last-triage.md"
-TICKETS="$LOOP_DIR/state/tickets"   # one file per ticket: "<status> <repo> [branch] [MR URL]"
 LOCK="$LOOP_DIR/state/run.lock"
-mkdir -p "$LOOP_DIR/logs" "$TICKETS" "$WT_ROOT"
+mkdir -p "$LOOP_DIR/logs" "$LOOP_DIR/state"
 
 notify() {
   osascript -e "display notification \"$1\" with title \"Loop\"" >/dev/null 2>&1
@@ -105,7 +104,7 @@ DENY_COMMON=(
 # ---------- Coordinator ----------
 PREV="(none)"
 [ -f "$LAST" ] && PREV=$(cat "$LAST")
-HANDLED=$(cd "$TICKETS" && for f in *; do [ -f "$f" ] && echo "- $f: $(cat "$f")"; done)
+HANDLED=$("$STATE" list | sed 's/^/- /')
 
 # web-app releases every Wednesday: staging → master, semantic-release commits
 # "chore(release): x.y.z" on master, then master is merged back into staging.
@@ -185,12 +184,12 @@ if [ "$REPO" = "web-app" ] && [ "$MERGE_BACK_PENDING" != "0" ]; then
   log "## $NOW worker skipped — web-app merge-back master → staging pending ($MERGE_BACK_PENDING commits)"
   exit 0
 fi
-if grep -lq '^working ' "$TICKETS"/* 2>/dev/null; then
+if [ -n "$("$STATE" list working)" ]; then
   log "## $NOW worker skipped — another ticket is still working"
   exit 0
 fi
-if [ -e "$TICKETS/$TICKET" ]; then
-  log "## $NOW worker skipped — $TICKET already handled ($(cat "$TICKETS/$TICKET"))"
+if "$STATE" get "$TICKET" >/dev/null; then
+  log "## $NOW worker skipped — $TICKET already handled ($("$STATE" get "$TICKET" status))"
   exit 0
 fi
 
@@ -201,14 +200,15 @@ if [ -n "$FREE" ] && [ "$FREE" -lt 30 ]; then
   exit 0
 fi
 
-WT="$WT_ROOT/$REPO-$TICKET"
+WT=$("$STATE" path "$REPO" "$TICKET")
+mkdir -p "$(dirname "$WT")"
 if ! { git -C "$REPO_DIR" fetch origin "$BASE" >/dev/null 2>&1 \
        && git -C "$REPO_DIR" worktree add --detach "$WT" "origin/$BASE" >/dev/null 2>&1; }; then
   log "## $NOW worker FAILED — could not create worktree $WT from origin/$BASE"
   notify "Worker สร้าง worktree ไม่ได้ ($TICKET)"
   exit 1
 fi
-echo "working $REPO" > "$TICKETS/$TICKET"
+"$STATE" set "$TICKET" working repo="$REPO"
 DID=1
 notify "Worker เริ่ม $TICKET ($REPO)"
 
@@ -224,7 +224,7 @@ WORKER_ALLOW=(
   "Bash(wc:*)" "Bash(mkdir:*)" "Bash(ps:*)" "Bash(pgrep:*)" "Bash(pkill -f karma:*)"
   "mcp__claude_ai_Atlassian_Rovo__getAccessibleAtlassianResources"
   "mcp__claude_ai_Atlassian_Rovo__getJiraIssue"
-  "Bash(glab issue view:*)"
+  "Bash(glab issue view:*)" "Bash(~/loop/bin/loop-state:*)"
 )
 WORKER_DENY=("${DENY_COMMON[@]}")
 if [ "$REPO" = "web-app" ]; then
@@ -246,7 +246,7 @@ phase() {
 }
 
 fail_ticket() {
-  echo "blocked $REPO" > "$TICKETS/$TICKET"
+  "$STATE" set "$TICKET" blocked
   log "### $1" "" "$2" ""
   notify "Worker หยุด $TICKET: ต้องการคุณ"
   pkill -f karma >/dev/null 2>&1
@@ -259,6 +259,8 @@ OUT=$(phase "/loop-work $TICKET $REPO" 200 --permission-mode acceptEdits \
 log "## $NOW worker $TICKET ($REPO)" ""
 RESULT=$(field "$OUT" RESULT)
 [ "$RESULT" = "ready-for-review" ] || fail_ticket "worker build: ${RESULT:-no RESULT line}" "$OUT"
+UI=$(printf '%s\n' "$OUT" | sed -n '/^### UI change/{n;p;q;}' | tr -d ' ')
+case "$UI" in yes|no) "$STATE" set "$TICKET" working ui="$UI" ;; esac
 log "### build" "" "$(printf '%s\n' "$OUT" | sed -n '/^RESULT:/,$p')" ""
 
 # ---------- Reviewer (read-only) ----------
@@ -280,12 +282,12 @@ BRANCH=$(git -C "$WT" branch --show-current)
 case "$RESULT" in
   mr-open*)
     URL=$(echo "$RESULT" | awk '{print $2}')
-    echo "mr-open $REPO $BRANCH $URL" > "$TICKETS/$TICKET"
+    "$STATE" set "$TICKET" mr-open branch="$BRANCH" mr="$URL"
     log "### finish" "" "$(printf '%s\n' "$OUT" | sed -n '/^RESULT:/,$p')" ""
     notify "MR พร้อมให้ตรวจ: $TICKET"
     ;;
   ready-to-ship*)
-    echo "ready-to-ship $REPO $BRANCH" > "$TICKETS/$TICKET"
+    "$STATE" set "$TICKET" ready-to-ship branch="$BRANCH"
     printf '%s\n' "$OUT" | sed -n '/^### MR title/,$p' > "$LOOP_DIR/state/mr-draft-$TICKET.md"
     log "### finish" "" "$(printf '%s\n' "$OUT" | sed -n '/^RESULT:/,$p')" ""
     notify "$TICKET พร้อม ship: สั่ง /loop-ship $TICKET"

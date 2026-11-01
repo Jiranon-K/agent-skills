@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 The user invoking this is the explicit request for browser automation. Claude in Chrome (`mcp__claude-in-chrome__*`) is the only browser tool; if it is not connected, report that and stop.
 
-1. Read `~/loop/state/tickets/<ticket>` for repo, branch and MR URL. Work in `~/Projects/worktree/<repo>-<ticket>`.
+1. Run `~/loop/bin/loop-state get <ticket>` for repo, branch and MR URL (`mr`). Work in the path `~/loop/bin/loop-state path <repo> <ticket>` prints.
 2. Read the ticket's acceptance criteria and the MR's "Loop evidence" note to know what to check.
 3. Start the dev server the repo's way (web-app: `yarn start`; project-b-web: `npm run dev`, port 3000) in the background. Never print `.env*` values.
 4. In a new Chrome tab, walk through each acceptance criterion. Respect repo test-data rules (web-app staging: full CRUD only on the test bot). Take one screenshot per criterion.

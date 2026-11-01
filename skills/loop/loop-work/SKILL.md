@@ -10,7 +10,7 @@ You run headless. Nobody answers questions. When something is unclear, stop with
 
 ## Hard rules (all phases)
 
-- Work only in the current directory. It must be under `~/Projects/worktree/`; if not, stop with `RESULT: blocked: not in a loop worktree`.
+- Work only in the current directory. It must be the path `~/loop/bin/loop-state path <repo> <ticket>` prints; if not, stop with `RESULT: blocked: not in a loop worktree`.
 - The repo's `CLAUDE.md` / `AGENTS.md` and the docs it points to win over this skill. Read them first.
 - Never read, print, or edit `.env*`. Never force-push, merge, rebase, or reset. Never touch another person's ticket or feature directory.
 - Stay in the ticket's scope. No unrelated refactors.
@@ -48,7 +48,7 @@ You run headless. Nobody answers questions. When something is unclear, stop with
 1. Fix every `blocking` and `major` finding. For any finding you decline, write one line on why. Re-run the verification from Phase 1 step 7 and commit.
 2. Deliver:
    - **web-app**: complete the feature record the repo requires (progress entry ending with the Handoff block, post-mortem, `status.json` evidence). Run `.harness/scripts/ship.sh --yes`. Find the MR (`glab mr view <branch>`), then
-     `glab mr update <n> --label "owner:you,needs:human-verify"` (add `needs:e2e` when the change is UI) and confirm with `glab mr view <n>` that the labels are there. Post one MR note (`glab mr note <n> -m ...`) titled "Loop evidence" with: verification commands and results, Reviewer findings and what was done with each, and either "e2e: pending — run /loop-e2e" (UI) or numbered manual verify steps (non-UI). Then on the Jira ticket: update the current loop status comment in place to `**Progress:** MR open: <MR URL> — waiting for review`, and replace label `agent:working` with `needs:human-verify`.
+     `glab mr update <n> --label "owner:you,needs:human-verify"` (add `needs:e2e` when `~/loop/bin/loop-state get <ticket> ui` prints `yes`) and confirm with `glab mr view <n>` that the labels are there. Post one MR note (`glab mr note <n> -m ...`) titled "Loop evidence" with: verification commands and results, Reviewer findings and what was done with each, and either "e2e: pending — run /loop-e2e" (UI) or numbered manual verify steps (non-UI). Then on the Jira ticket: update the current loop status comment in place to `**Progress:** MR open: <MR URL> — waiting for review`, and replace label `agent:working` with `needs:human-verify`.
      Print `RESULT: mr-open <MR URL>`.
    - **project-b-web**: nothing remote. Check the MR title with `./scripts/check-commit-msg.sh - <<< "<title>"`. Print:
      ```

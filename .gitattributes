@@ -1,0 +1,22 @@
+# Shell scripts must keep LF endings. A CRLF shebang line makes bash fail with
+# "bad interpreter: /usr/bin/env bash^M" on Linux and macOS, which is exactly
+# where CI runs them.
+*.sh text eol=lf
+
+# Markdown, YAML and JSON are read by tooling on every platform; normalise them
+# so a Windows checkout does not produce a diff against a Linux one.
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# PowerShell is Windows-first; CRLF is correct there.
+*.ps1 text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.ico binary

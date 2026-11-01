@@ -1,0 +1,6 @@
+.DS_Store
+Thumbs.db
+
+# Do not commit local credentials or assistant configuration.
+.env
+*.secret

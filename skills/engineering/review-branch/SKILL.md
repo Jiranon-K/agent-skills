@@ -21,6 +21,7 @@ argument-hint: <base-branch>
 - Invocation = permission to edit this branch and commit. Not to push, rebase, amend or force.
 - Changes already uncommitted at the start are the user's: keep them out of your commits unless they belong to this branch's work (ask if unclear).
 - Never suppress a failing check.
+- Steps 2 and 3 are calls to the `Skill` tool, every time. Reviewing the diff yourself does not count, however small the diff. If a skill cannot be loaded, stop and say so; do not substitute your own review.
 
 ## Workflow
 
@@ -32,6 +33,8 @@ argument-hint: <base-branch>
 6. **Commit.** Group by intent (`refactor:` simplify, `fix:` findings, `chore:` comments, `test:`), stage per group, one Conventional Commit each, in English, following the user's commit conventions (suffixes, trailers). Do not push.
 
 ## Output
+
+Start with one line naming the skills you called, e.g. `Skills: simplify ✓, mattpocock-skills:code-review ✓`. A step you did not run through its skill is marked `✗` with the reason — never left out.
 
 2-5 lines: findings fixed / rejected (why), comments removed, memory candidates, checks with results, `git log --oneline origin/<base>..HEAD`.
 

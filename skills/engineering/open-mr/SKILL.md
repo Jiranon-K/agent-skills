@@ -31,6 +31,9 @@ argument-hint: <target-branch>
    - **Why before what**; the diff already shows the what. Link the ticket.
    - Bullets, one line each, fits on one screen. Evidence = numbers actually observed; never placeholders ("not run — why").
    - "What got better" only with claims you can back. Emoji as section signposts only.
+   - Summary visual: one, the smallest that makes the point — UI change → component-tree diff; flow change → call-tree diff; refactor → file-tree diff; cross-service → mermaid. Keep only the parts that matter.
+   - Evidence as Before/After: screenshot when the UI changed (e.g. from `/e2e`), else the test that failed before and passes after, or observed output.
+   - Use domain terms from `GLOSSARY.md` / `CONTEXT.md` if present. No preamble.
 4. **Open.** After the OK: `glab mr create --source-branch <b> --target-branch <t> --title … --description … --yes` (or `gh pr create --base <t> --title … --body …`), adding any labels or reviewers the user's own instructions require. Verify with `glab mr view` / `gh pr view` and report the URL.
 
 ## Fallback layout
@@ -39,15 +42,18 @@ argument-hint: <target-branch>
 ## 🎯 Why
 <problem, 1-2 lines> · Refs: <ticket>
 ## ✨ What changed
+<one visual: diff-tree / call tree / component tree / mermaid>
 - <change>
 ## 📈 What got better
 - <concrete improvement>
 ## 🧪 Evidence
-| Check | Result |
-|---|---|
-| Pipeline | ✅ passed — <url> |
+- **Before:** <failing test / screenshot / output>
+  **After:** <passing test / screenshot / output>
+- Pipeline: ✅ passed — <url>
 ## ⚠️ Risk
-<one-way/two-way door, blast radius, rollback>
+**Door:** <one-way | two-way> — <why, if one-way>
+**Blast Radius:** <one word, e.g. none / page / module / consumers>
+<ramifications + rollback, 1–2 lines>
 ## 👀 How to review
 <where to start, what to skim>
 ```

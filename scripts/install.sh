@@ -87,5 +87,13 @@ copy_template loop/bin/loop-run.sh "$HOME/loop/bin/loop-run.sh"
 # loop-state holds no placeholders and is the protocol the runner and loop skills share: keep it current.
 link loop/bin/loop-state "$HOME/loop/bin/loop-state"
 
+# herdr config holds no placeholders: keep it current like the generic skills.
+link herdr/config.toml "$HOME/.config/herdr/config.toml"
+link herdr/changes-panel.sh "$HOME/.config/herdr/changes-panel.sh"
+link herdr-app/settings.json "$HOME/.config/herdr-app/settings.json"
+for f in herdr-app/themes/*.json; do
+  link "$f" "$HOME/.config/herdr-app/themes/$(basename "$f")"
+done
+
 [ "$dry" -eq 1 ] && echo "(dry run: nothing changed)"
 exit 0

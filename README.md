@@ -18,6 +18,8 @@ skills/
 claude/          ~/.claude: CLAUDE.md, AGENTS.md, statusline.sh, agents/
 loop/            ~/loop/bin/loop-run.sh, loop-state, launchd job, spec.html
 scheduled/       ~/.claude/scheduled-tasks: daily-standup, loop-summary
+herdr/           ~/.config/herdr: TUI config.toml, changes-panel.sh (prefix+f)
+herdr-app/       ~/.config/herdr-app: desktop app settings.json, themes/
 plugins.md       plugins to install on a new machine
 scripts/install.sh
 ```
@@ -34,6 +36,10 @@ git clone git@github.com:Jiranon-K/agent-skills.git ~/Projects/agent-skills
 setup — `claude/`, `loop/`, `scheduled/`, `skills/loop/` — is copied as a template
 only where nothing exists yet, and never overwritten. `loop/bin/loop-state` is the exception: it is symlinked, since the runner and loop skills share it. `--force` replaces existing
 generic skills only, moving the old ones to `~/.claude/backups/`.
+
+For [herdr](https://herdr.dev) (terminal multiplexer for coding agents), run
+`brew install herdr` and `herdr integration install claude`; for the desktop app,
+`brew install --cask herdr-app`. `install.sh` links both configs.
 
 Then install the plugins in [`plugins.md`](plugins.md) and run `/team-context` once
 per team.

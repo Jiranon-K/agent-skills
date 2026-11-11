@@ -2,7 +2,8 @@
 # The one owner of Loop ticket state and loop worktree paths. bash 3.2 compatible.
 # loop-run.sh and the loop skills call this instead of reading ~/loop/state/tickets/ themselves.
 #
-#   loop-state path <repo> <ticket>                  worktree path for a ticket
+#   loop-state repo <repo>                           "<main checkout> <base branch>" from $LOOP_DIR/repos
+#   loop-state path <repo> <ticket>                  worktree path for a ticket: <main checkout>/.claude/worktrees/<ticket>
 #   loop-state get <ticket> [key]                    whole state (key=value lines) or one value; exit 1 if unknown
 #   loop-state set <ticket> <status> [key=value...]  write state; keys not given are kept
 #   loop-state list [status]                         one line per ticket: "<ticket> status=... repo=..."
@@ -12,7 +13,8 @@
 set -u
 
 LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
-WT_ROOT="${WT_ROOT:-$HOME/Projects/worktree}"
+WT_ROOT="${WT_ROOT:-$HOME/Projects/worktree}"   # pre-2026-11 worktrees; path still finds them here
+REPOS="$LOOP_DIR/repos"                          # local only: "<repo> <main checkout> <base branch>" per line
 TICKETS="$LOOP_DIR/state/tickets"
 STATUSES="working blocked ready-to-ship mr-open merged"
 KEYS="repo branch mr ui"
@@ -21,9 +23,21 @@ die() { echo "loop-state: $*" >&2; exit 1; }
 is_one_of() { case " $2 " in *" $1 "*) return 0 ;; esac; return 1; }
 value() { [ -f "$TICKETS/$1" ] && sed -n "s/^$2=//p" "$TICKETS/$1" | head -n 1; }
 
+cmd_repo() {
+  [ $# -eq 1 ] || die "usage: repo <repo>"
+  local line
+  line=$([ -f "$REPOS" ] && awk -v r="$1" '$1 == r { print $2, $3; exit }' "$REPOS")
+  [ -n "$line" ] || die "unknown repo '$1' (add it to $REPOS)"
+  echo "$line"
+}
+
 cmd_path() {
   [ $# -eq 2 ] || die "usage: path <repo> <ticket>"
-  echo "$WT_ROOT/$1-$2"
+  # Inside the main checkout, so the workspace CLAUDE.md above it still loads.
+  local dir
+  if [ -d "$WT_ROOT/$1-$2" ]; then echo "$WT_ROOT/$1-$2"; return; fi
+  dir=$(cmd_repo "$1") || exit 1
+  echo "${dir% *}/.claude/worktrees/$2"
 }
 
 cmd_get() {
@@ -85,6 +99,6 @@ cmd_reset() {
 cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
-  path|get|set|list|reset) "cmd_$cmd" "$@" ;;
-  *) sed -n 5,11p "$0" >&2; exit 2 ;;
+  repo|path|get|set|list|reset) "cmd_$cmd" "$@" ;;
+  *) sed -n 5,12p "$0" >&2; exit 2 ;;
 esac

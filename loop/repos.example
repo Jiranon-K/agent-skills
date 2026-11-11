@@ -1,0 +1,3 @@
+# <repo> <main checkout> <base branch> — read by loop-state (repo, path). Local only.
+web-app /Users/you/Projects/project-a/web-app staging
+project-b-web /Users/you/Projects/project-b/project-b-web develop

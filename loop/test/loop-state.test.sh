@@ -15,9 +15,16 @@ fail() { FAIL=$((FAIL + 1)); echo "FAIL: $1"; }
 eq()   { [ "$2" = "$3" ] && ok || fail "$1: expected '$3', got '$2'"; }
 errs() { "$LS" "${@:2}" >/dev/null 2>&1 && fail "$1: expected an error" || ok; }
 
-# path
-eq "path" "$("$LS" path web-app EX-1)" "$WT_ROOT/web-app-EX-1"
+# repo / path
+mkdir -p "$LOOP_DIR"
+printf 'web-app %s staging\nproject-b-web %s develop\nmain-repo %s main\n' "$TMP/web-app" "$TMP/project-b-web" "$TMP/main" > "$LOOP_DIR/repos"
+eq "repo" "$("$LS" repo web-app)" "$TMP/web-app staging"
+errs "repo unknown" repo nope
+eq "path" "$("$LS" path web-app EX-1)" "$TMP/web-app/.claude/worktrees/EX-1"
+errs "path unknown repo" path nope EX-1
 errs "path needs two args" path web-app
+mkdir -p "$WT_ROOT/web-app-EX-9"
+eq "path keeps a legacy worktree" "$("$LS" path web-app EX-9)" "$WT_ROOT/web-app-EX-9"
 
 # set / get
 "$LS" set EX-1 working repo=web-app
@@ -62,19 +69,19 @@ mkworktree() {  # $1 = ticket
 
 mkworktree EX-5
 "$LS" reset EX-5
-[ -d "$WT_ROOT/main-repo-EX-5" ] && fail "reset removes a clean worktree" || ok
+[ -d "$TMP/main/.claude/worktrees/EX-5" ] && fail "reset removes a clean worktree" || ok
 errs "reset removes state with worktree" get EX-5
 
 mkworktree EX-6
-touch "$WT_ROOT/main-repo-EX-6/dirty"
+touch "$TMP/main/.claude/worktrees/EX-6/dirty"
 errs "reset refuses uncommitted changes" reset EX-6
-[ -d "$WT_ROOT/main-repo-EX-6" ] && ok || fail "dirty worktree kept"
+[ -d "$TMP/main/.claude/worktrees/EX-6" ] && ok || fail "dirty worktree kept"
 eq "dirty keeps state" "$("$LS" get EX-6 status)" "blocked"
 
 mkworktree EX-7
-git -C "$WT_ROOT/main-repo-EX-7" commit -q --allow-empty -m local
+git -C "$TMP/main/.claude/worktrees/EX-7" commit -q --allow-empty -m local
 errs "reset refuses unpushed commits" reset EX-7
-[ -d "$WT_ROOT/main-repo-EX-7" ] && ok || fail "unpushed worktree kept"
+[ -d "$TMP/main/.claude/worktrees/EX-7" ] && ok || fail "unpushed worktree kept"
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

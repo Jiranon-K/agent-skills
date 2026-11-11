@@ -174,11 +174,10 @@ TICKET=$(echo "$PICK" | awk '{print $1}')
 REPO=$(echo "$PICK" | awk '{print $2}')
 { [ -z "$TICKET" ] || [ "$TICKET" = "none" ]; } && exit 0
 
-case "$REPO" in
-  web-app)            REPO_DIR="$HOME/Projects/project-a/web-app"; BASE="staging" ;;
-  project-b-web) REPO_DIR="$HOME/Projects/project-b/project-b-web";        BASE="develop" ;;
-  *) log "## $NOW worker skipped — unknown repo '$REPO' for $TICKET"; exit 0 ;;
-esac
+if ! read -r REPO_DIR BASE < <("$STATE" repo "$REPO" 2>/dev/null) || [ -z "$BASE" ]; then
+  log "## $NOW worker skipped — unknown repo '$REPO' for $TICKET (add it to $LOOP_DIR/repos)"
+  exit 0
+fi
 
 if [ "$REPO" = "web-app" ] && [ "$MERGE_BACK_PENDING" != "0" ]; then
   log "## $NOW worker skipped — web-app merge-back master → staging pending ($MERGE_BACK_PENDING commits)"
@@ -208,6 +207,7 @@ if ! { git -C "$REPO_DIR" fetch origin "$BASE" >/dev/null 2>&1 \
   notify "Worker สร้าง worktree ไม่ได้ ($TICKET)"
   exit 1
 fi
+"$HOME/.claude/hooks/wt-setup" "$WT" >/dev/null 2>&1 || log "## $NOW worker: wt-setup failed for $WT (local files not linked)"
 "$STATE" set "$TICKET" working repo="$REPO"
 DID=1
 notify "Worker เริ่ม $TICKET ($REPO)"

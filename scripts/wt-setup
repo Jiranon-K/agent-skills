@@ -1,0 +1,98 @@
+#!/bin/bash
+# Bring a git worktree the main checkout's local-only files. bash 3.2 compatible.
+#
+# A worktree gets only tracked files. This reads two lists from the MAIN checkout's root
+# (both local-only: list them in .git/info/exclude, never commit them):
+#   .worktreelinks    one path per line -> symlinked to the main checkout's copy
+#                     (.env, hook scripts, docs you write while working, ...)
+#   .worktreeinclude  one plain path per line -> copied when missing. Claude Code reads
+#                     this file itself for worktrees it creates; glob lines are left to it.
+# node_modules is symlinked only when the worktree's yarn.lock matches the main checkout's.
+#
+# It only adds: an existing file is never replaced, except an untracked copy identical to
+# the main checkout's, which becomes a link. Links it makes are added to .git/info/exclude.
+#
+#   wt-setup [--dry-run] [<worktree>]   default: the current directory
+#   wt-setup --hook                     SessionStart hook: silent unless it changed something
+set -u
+
+dry=0 hook=0 dir=""
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) dry=1 ;;
+    --hook) hook=1 ;;
+    -h|--help) sed -n 2,17p "$0"; exit 0 ;;
+    -*) echo "wt-setup: unknown option $arg" >&2; exit 2 ;;
+    *) dir="$arg" ;;
+  esac
+done
+
+quit() { [ "$hook" -eq 1 ] && exit 0; echo "wt-setup: $*" >&2; exit 1; }
+
+wt=$(git -C "${dir:-.}" rev-parse --show-toplevel 2>/dev/null) || quit "not inside a git repo"
+gitdir=$(git -C "$wt" rev-parse --absolute-git-dir)
+common=$(cd "$wt" && cd "$(git rev-parse --git-common-dir)" && pwd -P)
+[ "$(cd "$gitdir" && pwd -P)" != "$common" ] || quit "$wt is the main checkout, not a linked worktree"
+main=$(dirname "$common")
+exclude="$common/info/exclude"
+
+changes=0
+note() {
+  changes=$((changes + 1))
+  [ "$hook" -eq 1 ] && return
+  [ "$dry" -eq 1 ] && echo "would $*" || echo "$*"
+}
+
+is_tracked() { git -C "$wt" ls-files --error-unmatch -- "$1" >/dev/null 2>&1; }
+
+exclude_link() {
+  # Patterns with a trailing slash (".claude/hooks/") do not match a symlink, so add the bare path.
+  git -C "$wt" check-ignore -q --no-index -- "$1" && return
+  [ "$dry" -eq 1 ] || printf '/%s\n' "$1" >> "$exclude"
+}
+
+link() {
+  local p="$1" src="$main/$1" dest="$wt/$1"
+  [ -e "$src" ] || return 0
+  [ -L "$dest" ] && return 0
+  is_tracked "$p" && return 0
+  if [ -e "$dest" ]; then
+    if [ -f "$src" ] && [ -f "$dest" ] && cmp -s "$src" "$dest"; then
+      note "relink  $p (copy identical to main)"
+      [ "$dry" -eq 1 ] || { rm "$dest" && ln -s "$src" "$dest"; }
+      exclude_link "$p"
+    elif [ "$hook" -eq 0 ]; then
+      echo "kept    $p (differs from main; not touched)"
+    fi
+    return 0
+  fi
+  note "link    $p"
+  [ "$dry" -eq 1 ] || { mkdir -p "$(dirname "$dest")" && ln -s "$src" "$dest"; }
+  exclude_link "$p"
+}
+
+copy() {
+  local p="$1"
+  [ -e "$main/$p" ] && [ ! -e "$wt/$p" ] && [ ! -L "$wt/$p" ] || return 0
+  note "copy    $p"
+  [ "$dry" -eq 1 ] || { mkdir -p "$(dirname "$wt/$p")" && cp -R "$main/$p" "$wt/$p"; }
+}
+
+entries() {
+  [ -f "$main/$1" ] || return 0
+  sed -e 's/[[:space:]]*$//' -e 's#^/##' -e 's#/$##' "$main/$1" | grep -v -e '^#' -e '^$' -e '[*?[!]' -e '\.\.'
+}
+
+while IFS= read -r p <&3; do link "$p"; done 3< <(entries .worktreelinks)
+while IFS= read -r p <&3; do copy "$p"; done 3< <(entries .worktreeinclude)
+
+if [ -d "$main/node_modules" ] && [ ! -e "$wt/node_modules" ] && [ ! -L "$wt/node_modules" ] \
+   && [ -f "$wt/yarn.lock" ] && cmp -s "$main/yarn.lock" "$wt/yarn.lock"; then
+  link node_modules
+fi
+
+if [ "$hook" -eq 1 ] && [ "$changes" -gt 0 ]; then
+  echo "wt-setup: brought $changes local-only file(s) from $main into this worktree. Tell the user to restart this session so .claude/settings.local.json (hooks, env, permissions) loads."
+fi
+[ "$hook" -eq 0 ] && [ "$changes" -eq 0 ] && echo "nothing to do: $wt"
+exit 0

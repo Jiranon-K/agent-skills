@@ -87,6 +87,9 @@ copy_template loop/bin/loop-run.sh "$HOME/loop/bin/loop-run.sh"
 # loop-state holds no placeholders and is the protocol the runner and loop skills share: keep it current.
 link loop/bin/loop-state "$HOME/loop/bin/loop-state"
 
+# SessionStart hook and loop-run.sh call it; it reads each repo's own .worktreelinks.
+link scripts/wt-setup "$HOME/.claude/hooks/wt-setup"
+
 # herdr config holds no placeholders: keep it current like the generic skills.
 link herdr/config.toml "$HOME/.config/herdr/config.toml"
 link herdr/changes-panel.sh "$HOME/.config/herdr/changes-panel.sh"

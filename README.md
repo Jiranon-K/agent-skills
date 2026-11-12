@@ -113,6 +113,5 @@ launchd runs `loop/bin/loop-run.sh` daily at 09:15. It calls
 | loop | `loop-ship` | User-run push and MR for project-b-web |
 | loop | `merge-approved` | User-run merge after human review |
 | personal | `understand` | Thai HTML explainer for a component or ticket |
-| personal | `read-book` | Thai explanation of English technical text |
 | personal | `ui-inspire` | Researches UI patterns, then designs an original UI |
 | personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="t d">
   <title id="t">agent-skills</title>
-  <desc id="d">My Claude Code setup in one repo. install.sh links 18 skills and copies 53 agents and 3 rules; 9 plugins install with claude plugin.</desc>
+  <desc id="d">My Claude Code setup in one repo. install.sh links 18 skills and copies 53 agents and 4 rules; 9 plugins install with claude plugin.</desc>
   <style>
     /* Hallmark · component: banner · genre: modern-minimal · theme: console (dealt 1/3, seed readme-banner-claude-code-1ce6·d5ab5f3f·2026-11-14·r0) · console: graphite · signature: the install map as a readout · v2.0.0 */
     /* critique: one panel carries the real install map; amber only on the command a person types, cool only on counts the script reports */
@@ -51,7 +51,7 @@
 
   <text class="path" x="664" y="230">claude/rules/</text>
   <text class="path" x="868" y="230">~/.claude/rules</text>
-  <text class="count" x="1120" y="230" text-anchor="end">3</text>
+  <text class="count" x="1120" y="230" text-anchor="end">4</text>
   <path class="rule" d="M640 248.5H1144"/>
 
   <path class="well" d="M641 249H1143V302a9 9 0 0 1-9 9H650a9 9 0 0 1-9-9Z"/>

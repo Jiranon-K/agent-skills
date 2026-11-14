@@ -31,16 +31,17 @@ Generic skills are **symlinked**, so `git pull` keeps them current. Everything t
 
 ```mermaid
 flowchart LR
-  U["/pstack:teach"] --> A["/pstack:architect"] --> P["/pstack:poteto-mode"] --> E["/e2e"] --> I["/pstack:interrogate"] --> MR["/open-mr"]
+  U["/pstack:teach"] --> B["brainstorming<br>grilling"] --> T["tdd"] --> E["/e2e"] --> RB["/review-branch"] --> MR["/open-mr"]
+  RB -. "all three gates" .-> SB["/ship-branch"]
 ```
 
 | Stage | Skill |
 | --- | --- |
-| Understand the ticket and the code | `/pstack:teach`, or `/pstack:how` and `/pstack:why` |
-| Shape a change | `/pstack:architect`, `/pstack:sharpen` |
-| Build, fix or refactor | `/pstack:poteto-mode` picks the playbook |
+| Pick up a ticket | `/pstack:teach <ticket>` |
+| Shape a change | `superpowers:brainstorming`, `mattpocock-skills:grilling` |
+| Build | `/mattpocock-skills:tdd` |
 | Check in a browser | `/e2e` |
-| Review before the MR | `/pstack:interrogate`, `/pstack:blast-radius`, `/review-branch` |
+| Clean up the branch | `/review-branch` |
 | Open the MR | `/open-mr` (or `/ship-branch`) |
 | Talk to the team | `/reply`, `/blocker-ping`, `/be-review`, and `/team-context` once per team |
 
@@ -48,7 +49,7 @@ flowchart LR
 
 | Folder | Count | Holds |
 | :--- | :--- | :--- |
-| **[skills/](skills)** | 19 | engineering, productivity, design, loop, personal |
+| **[skills/](skills)** | 18 | engineering, productivity, design, loop, personal |
 | **[claude/agents/](claude/agents)** | 53 | subagents grouped by category |
 | **[claude/rules/](claude/rules)** | 3 | code style, testing, self-improvement |
 | **[plugins.md](plugins.md)** | 9 | installed with `claude plugin`, not copied |
@@ -71,7 +72,6 @@ flowchart LR
 | productivity | `reply` | Reply drafts in each person's tone |
 | productivity | `team-context` | Interview that saves who is who per team |
 | design | `ui-ux-pro-max` | Searchable styles, palettes, fonts, UX rules |
-| personal | `understand` | Thai HTML explainer for a component or ticket |
 | personal | `ui-inspire` | Researches UI patterns, then designs an original UI |
 | personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
 | loop | `loop-triage`, `loop-work`, `loop-review` | Coordinator, worker and reviewer |

@@ -25,7 +25,7 @@ claude plugin marketplace add cursor/plugins
 | `mongodb` | claude-plugins-official | MongoDB tools |
 | `impeccable` | impeccable | UI design and polish |
 | `notion` | anthropic-plugin-directory | Notion workspace |
-| `pstack` | cursor-plugins | poteto-mode, teach, architect, interrogate, blast-radius (commands are `/pstack:<name>`) |
+| `pstack` | cursor-plugins | `/pstack:teach` to pick up a ticket (commands are `/pstack:<name>`) |
 
 `settings.json` is not stored here: it holds machine-specific permissions, hooks
 and env. Re-enable the plugins above from `/plugin` on a new machine.

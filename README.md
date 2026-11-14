@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  My personal Claude Code setup for side projects on my own machine, not a work or team setup.<br>
   The skills I actually use, the global instructions, curated subagents, and the Loop Engineering automation.<br>
   Shared with example values; see <a href="#setup-after-install">Setup after install</a>.
 </p>
@@ -21,7 +22,7 @@ Generic skills are **symlinked**, so `git pull` keeps them current. Everything t
 
 ## Daily workflow
 
-<p align="center"><img src="docs/assets/workflow.svg" alt="Daily workflow: /pstack:teach, brainstorming and grilling, tdd, /e2e, /review-branch, /open-mr; /ship-branch runs the last three" width="100%"></p>
+<p align="center"><img src="docs/assets/workflow.svg" alt="Daily workflow: /pstack:teach, grilling, to-spec, to-tickets for big work, implement-spec, code-review, /e2e, /open-mr" width="100%"></p>
 
 To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-context` once per team.
 

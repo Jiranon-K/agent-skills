@@ -7,6 +7,7 @@ with Claude Code instead, so they stay current with upstream.
 
 ```bash
 claude plugin marketplace add anthropics/claude-plugins-official
+claude plugin marketplace add mattpocock/skills
 claude plugin marketplace add obra/superpowers-marketplace
 claude plugin marketplace add pbakaus/impeccable
 claude plugin marketplace add makenotion/claude-code-notion-plugin
@@ -17,7 +18,7 @@ claude plugin marketplace add cursor/plugins
 
 | Plugin | Marketplace | Used for |
 | --- | --- | --- |
-| `mattpocock-skills` | claude-plugins-official | tdd, to-spec, to-tickets, implement, prototype, grilling, code-review, research |
+| `mattpocock-skills` | mattpocock | grilling, to-spec, to-tickets, implement-spec, code-review, tdd, prototype, research |
 | `superpowers` | superpowers-marketplace | brainstorming, systematic debugging, verification, plans |
 | `code-simplifier` | claude-plugins-official | simplify pass |
 | `commit-commands` | claude-plugins-official | commit helpers |

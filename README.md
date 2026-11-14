@@ -15,7 +15,8 @@ skills/
   design/        UI reference database
   loop/          Loop Engineering (triage → work → review → ship)
   personal/      skills built with Claude for my own use
-claude/          ~/.claude: CLAUDE.md, AGENTS.md, statusline.sh, agents/
+claude/          ~/.claude: CLAUDE.md, AGENTS.md, statusline.sh, rules/, agents/<category>/
+docs/prompting-patterns.md  copy-paste prompts (reference, not loaded)
 loop/            ~/loop/bin/loop-run.sh, loop-state, launchd job, spec.html
 scheduled/       ~/.claude/scheduled-tasks: daily-standup, loop-summary
 herdr/           ~/.config/herdr: TUI config.toml, changes-panel.sh (prefix+f)

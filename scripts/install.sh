@@ -75,8 +75,11 @@ done
 for f in CLAUDE.md AGENTS.md statusline.sh; do
   copy_template "claude/$f" "$HOME/.claude/$f"
 done
-for f in claude/agents/*.md; do
+for f in claude/agents/*/*.md; do
   copy_template "$f" "$HOME/.claude/agents/$(basename "$f")"
+done
+for f in claude/rules/*.md; do
+  copy_template "$f" "$HOME/.claude/rules/$(basename "$f")"
 done
 
 for dir in scheduled/*/; do

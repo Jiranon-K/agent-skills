@@ -17,33 +17,13 @@
 
 ## How it maps
 
-```mermaid
-flowchart LR
-  S["skills/"] -- symlink --> H["~/.claude/"]
-  C["claude/<br>instructions, rules, agents"] -- template --> H
-  SC["scheduled/"] -- template --> H
-  L["loop/"] -- template --> LH["~/loop/"]
-```
-
 Generic skills are **symlinked**, so `git pull` keeps them current. Everything that holds your own setup is a **template**: copied only when missing, never overwritten.
 
 ## Daily workflow
 
-```mermaid
-flowchart LR
-  U["/pstack:teach"] --> B["brainstorming<br>grilling"] --> T["tdd"] --> E["/e2e"] --> RB["/review-branch"] --> MR["/open-mr"]
-  RB -. "all three gates" .-> SB["/ship-branch"]
-```
+<p align="center"><img src="docs/assets/workflow.svg" alt="Daily workflow: /pstack:teach, brainstorming and grilling, tdd, /e2e, /review-branch, /open-mr; /ship-branch runs the last three" width="100%"></p>
 
-| Stage | Skill |
-| --- | --- |
-| Pick up a ticket | `/pstack:teach <ticket>` |
-| Shape a change | `superpowers:brainstorming`, `mattpocock-skills:grilling` |
-| Build | `/mattpocock-skills:tdd` |
-| Check in a browser | `/e2e` |
-| Clean up the branch | `/review-branch` |
-| Open the MR | `/open-mr` (or `/ship-branch`) |
-| Talk to the team | `/reply`, `/blocker-ping`, `/be-review`, and `/team-context` once per team |
+To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-context` once per team.
 
 ## What's inside
 
@@ -127,11 +107,7 @@ For [herdr](https://herdr.dev): `brew install herdr`, `herdr integration install
 
 ## Loop Engineering
 
-```mermaid
-flowchart LR
-  J(["launchd 09:15"]) --> TR["/loop-triage"] --> W["/loop-work"] --> RV["/loop-review"] --> F["/loop-work --finish"] --> SM(["loop-summary 09:30"])
-  F -.-> G{{"human gates<br>/loop-e2e, /loop-ship, /merge-approved"}}
-```
+<p align="center"><img src="docs/assets/loop.svg" alt="Loop Engineering: at 09:15 launchd runs loop-triage, loop-work, loop-review and loop-work --finish; at 09:30 loop-summary; then you run loop-e2e, loop-ship and merge-approved" width="100%"></p>
 
 Logs, state and summaries stay in `~/loop` and are not committed. To schedule it, copy `loop/launchd/com.example.loop.plist` to `~/Library/LaunchAgents/`, fix its paths, then:
 

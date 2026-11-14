@@ -15,7 +15,7 @@
     .ground { fill: var(--color-paper); }
     .panel { fill: var(--color-paper-2); stroke: var(--color-rule); stroke-width: 1; }
     .well { fill: var(--color-paper-3); }
-    .rule { stroke: var(--color-rule); stroke-width: 1; }
+    .rule { fill: none; stroke: var(--color-rule); stroke-width: 1; }
     .name { fill: var(--color-ink-2); font: 500 20px var(--font-display); }
     .head { fill: var(--color-ink); font: 500 50px var(--font-display); letter-spacing: -0.03em; }
     .lede { fill: var(--color-muted); font: 400 18px var(--font-display); }

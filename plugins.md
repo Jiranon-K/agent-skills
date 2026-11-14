@@ -10,6 +10,7 @@ claude plugin marketplace add anthropics/claude-plugins-official
 claude plugin marketplace add obra/superpowers-marketplace
 claude plugin marketplace add pbakaus/impeccable
 claude plugin marketplace add makenotion/claude-code-notion-plugin
+claude plugin marketplace add cursor/plugins
 ```
 
 ## Enabled plugins
@@ -24,6 +25,7 @@ claude plugin marketplace add makenotion/claude-code-notion-plugin
 | `mongodb` | claude-plugins-official | MongoDB tools |
 | `impeccable` | impeccable | UI design and polish |
 | `notion` | anthropic-plugin-directory | Notion workspace |
+| `pstack` | cursor-plugins | poteto-mode, teach, architect, interrogate, blast-radius (commands are `/pstack:<name>`) |
 
 `settings.json` is not stored here: it holds machine-specific permissions, hooks
 and env. Re-enable the plugins above from `/plugin` on a new machine.

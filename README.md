@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="agent-skills: 19 skills, 53 agents, 3 rules, 8 plugins" width="100%">
+  <img src="docs/assets/banner.svg" alt="agent-skills: my Claude Code setup in one repo, with the install map" width="100%">
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
 
 <p align="center">
   The skills I actually use, the global instructions, curated subagents, and the Loop Engineering automation.<br>
-  Shared with example values — see <a href="#setup-after-install">Setup after install</a>.
+  Shared with example values; see <a href="#setup-after-install">Setup after install</a>.
 </p>
 
 ---
@@ -20,7 +20,7 @@
 ```mermaid
 flowchart LR
   S["skills/"] -- symlink --> H["~/.claude/"]
-  C["claude/<br>instructions · rules · agents"] -- template --> H
+  C["claude/<br>instructions, rules, agents"] -- template --> H
   SC["scheduled/"] -- template --> H
   L["loop/"] -- template --> LH["~/loop/"]
 ```
@@ -31,32 +31,31 @@ Generic skills are **symlinked**, so `git pull` keeps them current. Everything t
 
 ```mermaid
 flowchart LR
-  U["/understand"] --> B["brainstorming<br>grilling"] --> T["tdd"] --> E["/e2e"] --> RB["/review-branch"] --> MR["/open-mr"]
-  RB -. "all three gates" .-> SB["/ship-branch"]
+  U["/pstack:teach"] --> A["/pstack:architect"] --> P["/pstack:poteto-mode"] --> E["/e2e"] --> I["/pstack:interrogate"] --> MR["/open-mr"]
 ```
 
 | Stage | Skill |
 | --- | --- |
-| Pick up a ticket | `/understand <ticket>` |
-| Shape a change | `superpowers:brainstorming`, `mattpocock-skills:grilling` |
-| Build | `/mattpocock-skills:tdd` |
+| Understand the ticket and the code | `/pstack:teach`, or `/pstack:how` and `/pstack:why` |
+| Shape a change | `/pstack:architect`, `/pstack:sharpen` |
+| Build, fix or refactor | `/pstack:poteto-mode` picks the playbook |
 | Check in a browser | `/e2e` |
-| Clean up the branch | `/review-branch` |
+| Review before the MR | `/pstack:interrogate`, `/pstack:blast-radius`, `/review-branch` |
 | Open the MR | `/open-mr` (or `/ship-branch`) |
-| Talk to the team | `/reply`, `/blocker-ping`, `/be-review` · `/team-context` once per team |
+| Talk to the team | `/reply`, `/blocker-ping`, `/be-review`, and `/team-context` once per team |
 
 ## What's inside
 
-| | | |
+| Folder | Count | Holds |
 | :--- | :--- | :--- |
-| 🧩 **[skills/](skills)** | 19 | engineering · productivity · design · loop · personal |
-| 🤖 **[claude/agents/](claude/agents)** | 53 | subagents grouped by category |
-| 📏 **[claude/rules/](claude/rules)** | 3 | code style · testing · self-improvement |
-| 🔌 **[plugins.md](plugins.md)** | 8 | installed with `claude plugin`, not copied |
-| 🔁 **[loop/](loop)** | — | Loop Engineering runner and launchd job |
-| ⏰ **[scheduled/](scheduled)** | 2 | daily-standup · loop-summary |
-| 🖥️ **[herdr/](herdr)** | — | terminal multiplexer configs |
-| 💬 **[docs/prompting-patterns.md](docs/prompting-patterns.md)** | 11 | copy-paste prompts (reference, not loaded) |
+| **[skills/](skills)** | 19 | engineering, productivity, design, loop, personal |
+| **[claude/agents/](claude/agents)** | 53 | subagents grouped by category |
+| **[claude/rules/](claude/rules)** | 3 | code style, testing, self-improvement |
+| **[plugins.md](plugins.md)** | 9 | installed with `claude plugin`, not copied |
+| **[loop/](loop)** | — | Loop Engineering runner and launchd job |
+| **[scheduled/](scheduled)** | 2 | daily-standup, loop-summary |
+| **[herdr/](herdr)** | — | terminal multiplexer configs |
+| **[docs/prompting-patterns.md](docs/prompting-patterns.md)** | 11 | copy-paste prompts (reference, not loaded) |
 
 <details>
 <summary><b>Skills</b></summary>
@@ -75,14 +74,14 @@ flowchart LR
 | personal | `understand` | Thai HTML explainer for a component or ticket |
 | personal | `ui-inspire` | Researches UI patterns, then designs an original UI |
 | personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
-| loop | `loop-triage` · `loop-work` · `loop-review` | Coordinator, worker and reviewer |
+| loop | `loop-triage`, `loop-work`, `loop-review` | Coordinator, worker and reviewer |
 | loop | `loop-summary` | Shows summaries since last run |
-| loop | `loop-e2e` · `loop-ship` · `merge-approved` | Human gates |
+| loop | `loop-e2e`, `loop-ship`, `merge-approved` | Human gates |
 
 </details>
 
 <details>
-<summary><b>Agents</b> — short names, one folder per category</summary>
+<summary><b>Agents</b>, short names in one folder per category</summary>
 
 | Category | Agents |
 | --- | --- |
@@ -94,7 +93,7 @@ flowchart LR
 | project-management | `project-manager` `project-shepherd` `experiment-tracker` `jira-helper` `meeting-notes` `studio-ops` `studio-producer` |
 | academic | `statistician` |
 
-Adapted from [msitarzewski/agency-agents](https://github.com/msitarzewski/agency-agents) — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Adapted from [msitarzewski/agency-agents](https://github.com/msitarzewski/agency-agents); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 </details>
 
@@ -131,7 +130,7 @@ For [herdr](https://herdr.dev): `brew install herdr`, `herdr integration install
 ```mermaid
 flowchart LR
   J(["launchd 09:15"]) --> TR["/loop-triage"] --> W["/loop-work"] --> RV["/loop-review"] --> F["/loop-work --finish"] --> SM(["loop-summary 09:30"])
-  F -.-> G{{"human gates<br>/loop-e2e · /loop-ship · /merge-approved"}}
+  F -.-> G{{"human gates<br>/loop-e2e, /loop-ship, /merge-approved"}}
 ```
 
 Logs, state and summaries stay in `~/loop` and are not committed. To schedule it, copy `loop/launchd/com.example.loop.plist` to `~/Library/LaunchAgents/`, fix its paths, then:
@@ -147,4 +146,4 @@ launchctl load ~/Library/LaunchAgents/com.example.loop.plist
 
 ---
 
-<p align="center"><sub>MIT · agents and rules adapted from MIT-licensed sources, see <a href="THIRD_PARTY_NOTICES.md">notices</a></sub></p>
+<p align="center"><sub>MIT license. Agents and rules are adapted from MIT-licensed sources; see <a href="THIRD_PARTY_NOTICES.md">notices</a></sub></p>

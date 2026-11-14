@@ -1,43 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="t d">
   <title id="t">agent-skills</title>
-  <desc id="d">Claude Code setup: skills, agents, rules and plugins</desc>
+  <desc id="d">My Claude Code setup in one repo. install.sh links 19 skills and copies 53 agents and 3 rules; 8 plugins install with claude plugin.</desc>
   <style>
-    .bg { fill: #fafaf9; }
-    .grid { stroke: #e7e5e4; }
-    .title { fill: #1c1917; font: 700 64px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: -1px; }
-    .sub { fill: #57534e; font: 400 22px system-ui, -apple-system, "Segoe UI", sans-serif; }
-    .chip { fill: #ffffff; stroke: #d6d3d1; }
-    .chipText { fill: #292524; font: 600 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .num { fill: #d97757; }
-    .dot { fill: #d97757; }
-    .line { stroke: #d6d3d1; stroke-width: 2; stroke-dasharray: 4 6; }
-    @media (prefers-color-scheme: dark) {
-      .bg { fill: #0c0a09; }
-      .grid { stroke: #1c1917; }
-      .title { fill: #fafaf9; }
-      .sub { fill: #a8a29e; }
-      .chip { fill: #1c1917; stroke: #44403c; }
-      .chipText { fill: #e7e5e4; }
-      .line { stroke: #44403c; }
+    /* Hallmark · component: banner · genre: modern-minimal · theme: console (dealt 1/3, seed readme-banner-claude-code-1ce6·d5ab5f3f·2026-11-14·r0) · console: graphite · signature: the install map as a readout · v2.0.0 */
+    /* critique: one panel carries the real install map; amber only on the command a person types, cool only on counts the script reports */
+    svg {
+      --color-paper: oklch(17% 0.008 250); --color-paper-2: oklch(21% 0.009 250); --color-paper-3: oklch(13.5% 0.007 250);
+      --color-ink: oklch(95% 0.005 250); --color-ink-2: oklch(83% 0.008 250); --color-muted: oklch(71% 0.01 250);
+      --color-rule: oklch(31% 0.01 250); --color-rule-2: oklch(42% 0.012 250);
+      --color-accent: oklch(82% 0.15 80); --color-cool: oklch(77% 0.12 245);
+      --font-display: "Host Grotesk", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+      --font-outlier: "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     }
+    .ground { fill: var(--color-paper); }
+    .panel { fill: var(--color-paper-2); stroke: var(--color-rule); stroke-width: 1; }
+    .well { fill: var(--color-paper-3); }
+    .rule { stroke: var(--color-rule); stroke-width: 1; }
+    .name { fill: var(--color-ink-2); font: 500 20px var(--font-display); }
+    .head { fill: var(--color-ink); font: 500 50px var(--font-display); letter-spacing: -0.03em; }
+    .lede { fill: var(--color-muted); font: 400 18px var(--font-display); }
+    .label { fill: var(--color-muted); font: 500 14px var(--font-display); }
+    .path { fill: var(--color-ink-2); font: 400 15px var(--font-outlier); }
+    .count { fill: var(--color-cool); font: 500 15px var(--font-outlier); }
+    .prompt { fill: var(--color-accent); font: 500 15px var(--font-outlier); }
+    .cmd { fill: var(--color-ink); font: 400 15px var(--font-outlier); }
   </style>
-  <rect class="bg" width="1200" height="320" rx="16"/>
-  <g class="grid" stroke-width="1">
-    <path d="M0 80H1200M0 160H1200M0 240H1200"/>
-    <path d="M200 0V320M400 0V320M600 0V320M800 0V320M1000 0V320"/>
-  </g>
-  <circle class="dot" cx="88" cy="112" r="10"/>
-  <text class="title" x="112" y="134">agent-skills</text>
-  <text class="sub" x="80" y="180">My Claude Code setup — skills, agents, rules and plugins in one repo.</text>
-  <path class="line" d="M190 246H1010"/>
-  <g>
-    <rect class="chip" x="80" y="222" width="210" height="48" rx="24"/>
-    <text class="chipText" x="185" y="252" text-anchor="middle"><tspan class="num">19</tspan> skills</text>
-    <rect class="chip" x="330" y="222" width="210" height="48" rx="24"/>
-    <text class="chipText" x="435" y="252" text-anchor="middle"><tspan class="num">53</tspan> agents</text>
-    <rect class="chip" x="580" y="222" width="210" height="48" rx="24"/>
-    <text class="chipText" x="685" y="252" text-anchor="middle"><tspan class="num">3</tspan> rules</text>
-    <rect class="chip" x="830" y="222" width="210" height="48" rx="24"/>
-    <text class="chipText" x="935" y="252" text-anchor="middle"><tspan class="num">8</tspan> plugins</text>
-  </g>
+
+  <rect class="ground" width="1200" height="360" rx="10"/>
+
+  <text class="name" x="56" y="78">agent-skills</text>
+  <text class="head" x="56" y="168">My Claude Code setup,</text>
+  <text class="head" x="56" y="226">in one repo.</text>
+  <text class="lede" x="56" y="276">Skills, agents and rules that install with one script.</text>
+
+  <rect class="panel" x="640" y="48" width="504" height="264" rx="10"/>
+  <text class="label" x="664" y="84">Source</text>
+  <text class="label" x="868" y="84">Lands in</text>
+  <text class="label" x="1120" y="84" text-anchor="end">Count</text>
+  <path class="rule" d="M640 104.5H1144"/>
+
+  <text class="path" x="664" y="134">skills/</text>
+  <text class="path" x="868" y="134">~/.claude/skills</text>
+  <text class="count" x="1120" y="134" text-anchor="end">19</text>
+  <path class="rule" d="M640 152.5H1144"/>
+
+  <text class="path" x="664" y="182">claude/agents/</text>
+  <text class="path" x="868" y="182">~/.claude/agents</text>
+  <text class="count" x="1120" y="182" text-anchor="end">53</text>
+  <path class="rule" d="M640 200.5H1144"/>
+
+  <text class="path" x="664" y="230">claude/rules/</text>
+  <text class="path" x="868" y="230">~/.claude/rules</text>
+  <text class="count" x="1120" y="230" text-anchor="end">3</text>
+  <path class="rule" d="M640 248.5H1144"/>
+
+  <path class="well" d="M641 249H1143V302a9 9 0 0 1-9 9H650a9 9 0 0 1-9-9Z"/>
+  <text class="prompt" x="664" y="286">$</text>
+  <text class="cmd" x="684" y="286">./scripts/install.sh --dry-run</text>
 </svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="t d">
+  <title id="t">agent-skills</title>
+  <desc id="d">Claude Code setup: skills, agents, rules and plugins</desc>
+  <style>
+    .bg { fill: #fafaf9; }
+    .grid { stroke: #e7e5e4; }
+    .title { fill: #1c1917; font: 700 64px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: -1px; }
+    .sub { fill: #57534e; font: 400 22px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .chip { fill: #ffffff; stroke: #d6d3d1; }
+    .chipText { fill: #292524; font: 600 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .num { fill: #d97757; }
+    .dot { fill: #d97757; }
+    .line { stroke: #d6d3d1; stroke-width: 2; stroke-dasharray: 4 6; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0c0a09; }
+      .grid { stroke: #1c1917; }
+      .title { fill: #fafaf9; }
+      .sub { fill: #a8a29e; }
+      .chip { fill: #1c1917; stroke: #44403c; }
+      .chipText { fill: #e7e5e4; }
+      .line { stroke: #44403c; }
+    }
+  </style>
+  <rect class="bg" width="1200" height="320" rx="16"/>
+  <g class="grid" stroke-width="1">
+    <path d="M0 80H1200M0 160H1200M0 240H1200"/>
+    <path d="M200 0V320M400 0V320M600 0V320M800 0V320M1000 0V320"/>
+  </g>
+  <circle class="dot" cx="88" cy="112" r="10"/>
+  <text class="title" x="112" y="134">agent-skills</text>
+  <text class="sub" x="80" y="180">My Claude Code setup — skills, agents, rules and plugins in one repo.</text>
+  <path class="line" d="M190 246H1010"/>
+  <g>
+    <rect class="chip" x="80" y="222" width="210" height="48" rx="24"/>
+    <text class="chipText" x="185" y="252" text-anchor="middle"><tspan class="num">19</tspan> skills</text>
+    <rect class="chip" x="330" y="222" width="210" height="48" rx="24"/>
+    <text class="chipText" x="435" y="252" text-anchor="middle"><tspan class="num">53</tspan> agents</text>
+    <rect class="chip" x="580" y="222" width="210" height="48" rx="24"/>
+    <text class="chipText" x="685" y="252" text-anchor="middle"><tspan class="num">3</tspan> rules</text>
+    <rect class="chip" x="830" y="222" width="210" height="48" rx="24"/>
+    <text class="chipText" x="935" y="252" text-anchor="middle"><tspan class="num">8</tspan> plugins</text>
+  </g>
+</svg>

@@ -1,31 +1,104 @@
-# agent-skills
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="agent-skills: 19 skills, 53 agents, 3 rules, 8 plugins" width="100%">
+</p>
 
-My Claude Code setup for daily frontend work: the skills I actually use, the global
-instructions, the Loop Engineering automation, and the scheduled tasks. Shared with example values; see Setup after install.
+<p align="center">
+  <a href="#install"><img src="https://img.shields.io/badge/install-macOS-1c1917?style=flat-square" alt="install on macOS"></a>
+  <a href="https://claude.com/claude-code"><img src="https://img.shields.io/badge/Claude%20Code-setup-d97757?style=flat-square" alt="Claude Code setup"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-57534e?style=flat-square" alt="MIT license"></a>
+</p>
 
-Skills that ship as plugins (Matt Pocock, superpowers, impeccable, …) are not copied
-here — see [`plugins.md`](plugins.md).
+<p align="center">
+  The skills I actually use, the global instructions, curated subagents, and the Loop Engineering automation.<br>
+  Shared with example values — see <a href="#setup-after-install">Setup after install</a>.
+</p>
 
-## Layout
+---
 
+## How it maps
+
+```mermaid
+flowchart LR
+  S["skills/"] -- symlink --> H["~/.claude/"]
+  C["claude/<br>instructions · rules · agents"] -- template --> H
+  SC["scheduled/"] -- template --> H
+  L["loop/"] -- template --> LH["~/loop/"]
 ```
-skills/
-  engineering/   branch → review → MR workflow
-  productivity/  team communication and team context
-  design/        UI reference database
-  loop/          Loop Engineering (triage → work → review → ship)
-  personal/      skills built with Claude for my own use
-claude/          ~/.claude: CLAUDE.md, AGENTS.md, statusline.sh, rules/, agents/<category>/
-docs/prompting-patterns.md  copy-paste prompts (reference, not loaded)
-loop/            ~/loop/bin/loop-run.sh, loop-state, launchd job, spec.html
-scheduled/       ~/.claude/scheduled-tasks: daily-standup, loop-summary
-herdr/           ~/.config/herdr: TUI config.toml, changes-panel.sh (prefix+f)
-herdr-app/       ~/.config/herdr-app: desktop app settings.json, themes/
-plugins.md       plugins to install on a new machine
-scripts/install.sh
+
+Generic skills are **symlinked**, so `git pull` keeps them current. Everything that holds your own setup is a **template**: copied only when missing, never overwritten.
+
+## Daily workflow
+
+```mermaid
+flowchart LR
+  U["/understand"] --> B["brainstorming<br>grilling"] --> T["tdd"] --> E["/e2e"] --> RB["/review-branch"] --> MR["/open-mr"]
+  RB -. "all three gates" .-> SB["/ship-branch"]
 ```
 
-## Install on a Mac
+| Stage | Skill |
+| --- | --- |
+| Pick up a ticket | `/understand <ticket>` |
+| Shape a change | `superpowers:brainstorming`, `mattpocock-skills:grilling` |
+| Build | `/mattpocock-skills:tdd` |
+| Check in a browser | `/e2e` |
+| Clean up the branch | `/review-branch` |
+| Open the MR | `/open-mr` (or `/ship-branch`) |
+| Talk to the team | `/reply`, `/blocker-ping`, `/be-review` · `/team-context` once per team |
+
+## What's inside
+
+| | | |
+| :--- | :--- | :--- |
+| 🧩 **[skills/](skills)** | 19 | engineering · productivity · design · loop · personal |
+| 🤖 **[claude/agents/](claude/agents)** | 53 | subagents grouped by category |
+| 📏 **[claude/rules/](claude/rules)** | 3 | code style · testing · self-improvement |
+| 🔌 **[plugins.md](plugins.md)** | 8 | installed with `claude plugin`, not copied |
+| 🔁 **[loop/](loop)** | — | Loop Engineering runner and launchd job |
+| ⏰ **[scheduled/](scheduled)** | 2 | daily-standup · loop-summary |
+| 🖥️ **[herdr/](herdr)** | — | terminal multiplexer configs |
+| 💬 **[docs/prompting-patterns.md](docs/prompting-patterns.md)** | 11 | copy-paste prompts (reference, not loaded) |
+
+<details>
+<summary><b>Skills</b></summary>
+
+| Bucket | Skill | What it does |
+| --- | --- | --- |
+| engineering | `be-review` | Reviews a backend proposal from the frontend side |
+| engineering | `e2e` | Browser end-to-end check of the branch changes |
+| engineering | `open-mr` | Pushes, waits for CI, opens the MR |
+| engineering | `review-branch` | Simplify, review, fix, split commits before an MR |
+| engineering | `ship-branch` | review-branch → e2e → open-mr in gated steps |
+| productivity | `blocker-ping` | Follow-ups for blockers that keep rolling over |
+| productivity | `reply` | Reply drafts in each person's tone |
+| productivity | `team-context` | Interview that saves who is who per team |
+| design | `ui-ux-pro-max` | Searchable styles, palettes, fonts, UX rules |
+| personal | `understand` | Thai HTML explainer for a component or ticket |
+| personal | `ui-inspire` | Researches UI patterns, then designs an original UI |
+| personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
+| loop | `loop-triage` · `loop-work` · `loop-review` | Coordinator, worker and reviewer |
+| loop | `loop-summary` | Shows summaries since last run |
+| loop | `loop-e2e` · `loop-ship` · `merge-approved` | Human gates |
+
+</details>
+
+<details>
+<summary><b>Agents</b> — short names, one folder per category</summary>
+
+| Category | Agents |
+| --- | --- |
+| engineering | `frontend-dev` `backend-dev` `code-reviewer` `system-architect` `minimal-fix` `database-tuner` `devops` `docs-writer` `rust-refactor` `codebase-guide` `translation-ready` `prototyper` `git-helper` `auth-engineer` `api-designer` `reliability-engineer` `incident-lead` `ai-feature-dev` `mcp-builder` |
+| design | `ui-designer` `ui-reviewer` `ux-architect` `ux-researcher` `brand-guardian` `visual-storyteller` `delight-designer` `persona-walkthrough` `image-prompt-writer` `inclusive-visuals` |
+| testing | `e2e-tester` `api-tester` `speed-tester` `accessibility-checker` `reality-checker` `evidence-collector` `test-results-analyzer` |
+| security | `security-reviewer` `ai-code-auditor` `secrets-guard` |
+| product | `product-manager` `sprint-planner` `feedback-analyst` `trend-researcher` `dx-engineer` `nudge-designer` |
+| project-management | `project-manager` `project-shepherd` `experiment-tracker` `jira-helper` `meeting-notes` `studio-ops` `studio-producer` |
+| academic | `statistician` |
+
+Adapted from [msitarzewski/agency-agents](https://github.com/msitarzewski/agency-agents) — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+</details>
+
+## Install
 
 ```bash
 git clone git@github.com:Jiranon-K/agent-skills.git ~/Projects/agent-skills
@@ -33,21 +106,14 @@ git clone git@github.com:Jiranon-K/agent-skills.git ~/Projects/agent-skills
 ~/Projects/agent-skills/scripts/install.sh
 ```
 
-`install.sh` symlinks the generic skills, so `git pull` keeps them current. Your own
-setup — `claude/`, `loop/`, `scheduled/`, `skills/loop/` — is copied as a template
-only where nothing exists yet, and never overwritten. `loop/bin/loop-state` is the exception: it is symlinked, since the runner and loop skills share it. `--force` replaces existing
-generic skills only, moving the old ones to `~/.claude/backups/`.
+`--force` replaces existing generic skills only, moving the old ones to `~/.claude/backups/`. Then install the plugins in [plugins.md](plugins.md) and run `/team-context` once per team.
 
-For [herdr](https://herdr.dev) (terminal multiplexer for coding agents), run
-`brew install herdr` and `herdr integration install claude`; for the desktop app,
-`brew install --cask herdr-app`. `install.sh` links both configs.
-
-Then install the plugins in [`plugins.md`](plugins.md) and run `/team-context` once
-per team.
+For [herdr](https://herdr.dev): `brew install herdr`, `herdr integration install claude`, and `brew install --cask herdr-app`. `install.sh` links both configs.
 
 ## Setup after install
 
-The templates use example values. Replace them in the copied files:
+<details>
+<summary>Replace the example values in the copied templates</summary>
 
 | Placeholder | Means |
 | --- | --- |
@@ -58,61 +124,27 @@ The templates use example values. Replace them in the copied files:
 | `owner:you`, `your.username`, `@you` | your MR label and usernames |
 | `/Users/YOUR_USER` | your home folder (launchd does not expand `~`) |
 
-For the loop job, copy `loop/launchd/com.example.loop.plist` to
-`~/Library/LaunchAgents/`, fix its paths, then:
+</details>
+
+## Loop Engineering
+
+```mermaid
+flowchart LR
+  J(["launchd 09:15"]) --> TR["/loop-triage"] --> W["/loop-work"] --> RV["/loop-review"] --> F["/loop-work --finish"] --> SM(["loop-summary 09:30"])
+  F -.-> G{{"human gates<br>/loop-e2e · /loop-ship · /merge-approved"}}
+```
+
+Logs, state and summaries stay in `~/loop` and are not committed. To schedule it, copy `loop/launchd/com.example.loop.plist` to `~/Library/LaunchAgents/`, fix its paths, then:
 
 ```bash
 launchctl load ~/Library/LaunchAgents/com.example.loop.plist
 ```
 
-## Daily workflow
-
-| Stage | Skill |
-| --- | --- |
-| Pick up a ticket | `/understand <ticket>` |
-| Shape a change | `superpowers:brainstorming`, `mattpocock-skills:grilling` (plugins) |
-| Build | `/mattpocock-skills:tdd` (plugin) |
-| Check in a browser | `/e2e` |
-| Clean up the branch | `/review-branch` |
-| Open the MR | `/open-mr` (or `/ship-branch` for all three gates) |
-| Set up who is who | `/team-context` (once per team) |
-| Talk to the team | `/reply`, `/blocker-ping`, `/be-review` |
-
-## Loop Engineering
-
-launchd runs `loop/bin/loop-run.sh` daily at 09:15. It calls
-`/loop-triage` → `/loop-work` → `/loop-review` → `/loop-work --finish`, and the
-`loop-summary` scheduled task shows the result at 09:30. Human gates:
-`/loop-e2e`, `/loop-ship`, `/merge-approved`. Logs, state and summaries stay in
-`~/loop` and are not committed.
-
-## Scheduled tasks
-
-| Task | When | What |
+| Scheduled task | When | What |
 | --- | --- | --- |
 | `daily-standup` | 17:47 Mon–Fri | Standup for Discord from the day's sessions and git activity |
 | `loop-summary` | 09:30 daily | Shows new loop summaries |
 
-## Skills
+---
 
-| Bucket | Skill | What it does |
-| --- | --- | --- |
-| engineering | `be-review` | Reviews a backend proposal from the frontend side |
-| engineering | `e2e` | Browser end-to-end check of the branch changes |
-| engineering | `open-mr` | Pushes, waits for CI, opens the MR |
-| engineering | `review-branch` | Simplify, review, fix, split commits before an MR |
-| engineering | `ship-branch` | review-branch → e2e → open-mr in gated steps |
-| productivity | `blocker-ping` | Follow-ups for blockers that keep rolling over |
-| productivity | `reply` | Reply drafts in each person's tone; sends via Claude in Chrome after approval |
-| productivity | `team-context` | Interview that saves who is who, tone and mentions per team |
-| design | `ui-ux-pro-max` | Searchable styles, palettes, fonts, UX rules |
-| loop | `loop-triage` | Coordinator: lists, labels and picks a ticket |
-| loop | `loop-work` | Worker: implements one low-risk ticket |
-| loop | `loop-review` | Reviewer: read-only review of the Worker diff |
-| loop | `loop-summary` | Shows summaries since last run |
-| loop | `loop-e2e` | User-run browser e2e for a loop MR |
-| loop | `loop-ship` | User-run push and MR for project-b-web |
-| loop | `merge-approved` | User-run merge after human review |
-| personal | `understand` | Thai HTML explainer for a component or ticket |
-| personal | `ui-inspire` | Researches UI patterns, then designs an original UI |
-| personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
+<p align="center"><sub>MIT · agents and rules adapted from MIT-licensed sources, see <a href="THIRD_PARTY_NOTICES.md">notices</a></sub></p>

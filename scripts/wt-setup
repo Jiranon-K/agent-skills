@@ -7,6 +7,8 @@
 #                     (.env, hook scripts, docs you write while working, ...)
 #   .worktreeinclude  one plain path per line -> copied when missing. Claude Code reads
 #                     this file itself for worktrees it creates; glob lines are left to it.
+# .claude/settings.json that the main checkout marks skip-worktree (a local-only edit of a
+# tracked file) is copied over the worktree's unmodified copy and marked the same way.
 # node_modules is symlinked only when the worktree's yarn.lock matches the main checkout's.
 #
 # It only adds: an existing file is never replaced, except an untracked copy identical to
@@ -85,6 +87,18 @@ entries() {
 
 while IFS= read -r p <&3; do link "$p"; done 3< <(entries .worktreelinks)
 while IFS= read -r p <&3; do copy "$p"; done 3< <(entries .worktreeinclude)
+
+mirror_skip_worktree() {
+  local p="$1"
+  git -C "$main" ls-files -v -- "$p" 2>/dev/null | grep -q '^S ' || return 0
+  git -C "$wt" ls-files -v -- "$p" 2>/dev/null | grep -q '^H ' || return 0
+  git -C "$wt" diff --quiet -- "$p" || return 0
+  cmp -s "$main/$p" "$wt/$p" && return 0
+  note "mirror  $p (main keeps a local skip-worktree edit)"
+  [ "$dry" -eq 1 ] || { cp "$main/$p" "$wt/$p" && git -C "$wt" update-index --skip-worktree -- "$p"; }
+}
+
+mirror_skip_worktree .claude/settings.json
 
 if [ -d "$main/node_modules" ] && [ ! -e "$wt/node_modules" ] && [ ! -L "$wt/node_modules" ] \
    && [ -f "$wt/yarn.lock" ] && cmp -s "$main/yarn.lock" "$wt/yarn.lock"; then

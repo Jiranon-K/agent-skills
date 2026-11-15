@@ -93,6 +93,8 @@ link loop/bin/loop-state "$HOME/loop/bin/loop-state"
 
 # SessionStart hook and loop-run.sh call it; it reads each repo's own .worktreelinks.
 link scripts/wt-setup "$HOME/.claude/hooks/wt-setup"
+# SessionStart hook: removes worktrees whose branch was merged (never main/master/staging/develop).
+link scripts/wt-prune "$HOME/.claude/hooks/wt-prune"
 
 # herdr config holds no placeholders: keep it current like the generic skills.
 link herdr/config.toml "$HOME/.config/herdr/config.toml"

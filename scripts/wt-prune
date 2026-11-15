@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# Remove worktrees whose branch has been merged. bash 3.2 compatible.
+#
+# Scans every git repo under $WT_PRUNE_ROOTS (default: ~/Home), and in each one the
+# worktrees under <repo>/.claude/worktrees/. A worktree is removed only when all hold:
+#   - its branch is not main, master, staging or develop (never touched)
+#   - it has no uncommitted or untracked changes
+#   - its HEAD is in origin/<default branch> and its remote branch is gone, or an MR/PR from that branch was merged
+#     with the same head commit (squash merges), checked with glab or gh
+# Then `git worktree remove` (never --force) and the local branch is deleted.
+#
+# Usage:
+#   wt-prune --dry-run   # show what would be removed
+#   wt-prune             # remove
+#   wt-prune --hook      # SessionStart hook: same as no flag, log only
+set -u
+
+dry=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) dry=1 ;;
+    --hook) ;;
+    -h|--help) sed -n 2,15p "$0"; exit 0 ;;
+    *) echo "unknown option: $arg" >&2; exit 2 ;;
+  esac
+done
+
+roots="${WT_PRUNE_ROOTS:-$HOME/Home}"
+log="$HOME/.claude/logs/wt-prune.log"
+mkdir -p "$(dirname "$log")"
+note() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M')" "$*" | tee -a "$log"; }
+
+protected() {
+  case "$1" in main|master|staging|develop|"") return 0 ;; esac
+  return 1
+}
+
+# Prints the head sha of a merged MR/PR from branch $2 in repo $1, if any.
+merged_head() {
+  local repo="$1" branch="$2" url
+  url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 0
+  case "$url" in
+    *github.com*)
+      command -v gh >/dev/null || return 0
+      (cd "$repo" && gh pr list --state merged --head "$branch" --json headRefOid -q '.[0].headRefOid' 2>/dev/null) ;;
+    *)
+      command -v glab >/dev/null || return 0
+      (cd "$repo" && glab mr list --merged --source-branch "$branch" -F json 2>/dev/null) \
+        | python3 -I -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: d=[]
+print(d[0].get("sha","") if d else "")' ;;
+  esac
+}
+
+prune_repo() {
+  local repo="$1" wt="" br="" line
+  local base
+  base="$(git -C "$repo" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null)"
+  git -C "$repo" worktree list --porcelain | { while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wt="${line#worktree }"; br="" ;;
+      "branch refs/heads/"*) br="${line#branch refs/heads/}" ;;
+      "")
+        check "$repo" "$wt" "$br" "$base"
+        wt=""; br="" ;;
+    esac
+  done; [ -n "$wt" ] && check "$repo" "$wt" "$br" "$base"; }
+}
+
+check() {
+  local repo="$1" wt="$2" br="$3" base="$4" head sha
+  case "$wt" in "$repo"/.claude/worktrees/*) ;; *) return ;; esac
+  protected "$br" && return
+  [ -d "$wt" ] || return
+  [ -z "$(git -C "$wt" status --porcelain 2>/dev/null)" ] || return
+  head="$(git -C "$wt" rev-parse HEAD)" || return
+  # A fresh branch with no commits of its own is also an ancestor of base, so the
+  # ancestor path also needs the branch pushed once and its remote branch deleted.
+  if [ -n "$base" ] && git -C "$repo" merge-base --is-ancestor "$head" "$base" 2>/dev/null \
+     && [ "$(git -C "$repo" for-each-ref --format='%(upstream:track)' "refs/heads/$br")" = "[gone]" ]; then
+    :
+  else
+    sha="$(merged_head "$repo" "$br")"
+    [ -n "$sha" ] && [ "$sha" = "$head" ] || return
+  fi
+  if [ "$dry" -eq 1 ]; then
+    note "would remove $wt ($br)"
+    return
+  fi
+  git -C "$repo" worktree remove "$wt" && git -C "$repo" branch -D "$br" >/dev/null && note "removed $wt ($br)"
+}
+
+for root in $roots; do
+  [ -d "$root" ] || continue
+  find "$root" -maxdepth 3 -name .git -type d -not -path '*/.claude/*' 2>/dev/null | while IFS= read -r g; do
+    prune_repo "${g%/.git}"
+  done
+done
+exit 0

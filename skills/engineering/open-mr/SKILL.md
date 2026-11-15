@@ -21,6 +21,7 @@ argument-hint: <target-branch>
 - Invoked by the user (directly or via `/ship-branch`) = permission to push this branch (never `--force`) and open one MR. Not to merge, rebase or touch other branches.
 - Model-chosen without the user asking → confirm before pushing.
 - The pipeline must pass before the MR opens. Always show the title and description and wait for an OK before creating.
+- Draft only when the Loop opens the MR: open it as a Draft (`--draft`) with the label `needs:human-verify`. An MR the user asks for in a session is never a Draft (no `Draft:` title prefix, no `--draft`). When CI runs only on merge request events, so no pipeline can exist before the MR, open it ready after the OK, then watch its pipeline and report the result.
 
 ## Workflow
 

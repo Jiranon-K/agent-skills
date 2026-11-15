@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="552" viewBox="0 0 1200 552" role="img" aria-labelledby="t d">
   <title id="t">Loop Engineering</title>
-  <desc id="d">At 09:15 launchd runs loop-run.sh: /loop-triage picks a ticket, /loop-work implements it, /loop-review reviews the diff, /loop-work --finish applies the review. At 09:30 loop-summary shows the result. You then run the gates: /loop-e2e, /loop-ship, /merge-approved.</desc>
+  <desc id="d">At 09:15 launchd runs loop-run.sh: /loop-triage routes tasks and picks up to two, then each picked task gets its own herdr session running /loop-work, which builds, gets a read-only loop-reviewer pass, fixes the findings and opens a Draft MR. At 09:30 loop-summary shows the result. You then verify the MR and run the gates: /loop-e2e, /merge-approved.</desc>
   <style>
     /* Hallmark · component: figure · genre: modern-minimal · theme: console (matches banner.svg) · console: graphite · signature: the daily run as a timed trail · v2.0.0 */
     /* critique: cool for the clock and the scheduler, amber only for the gates a person runs */
@@ -38,19 +38,19 @@
   <path class="rule" d="M184 132.5H1200"/>
 
   <text class="cmd" x="200" y="179">/loop-triage</text>
-  <text class="role" x="640" y="179">Coordinator picks one ticket</text>
+  <text class="role" x="640" y="179">Coordinator routes tasks, picks up to two</text>
   <path class="rule" d="M184 196.5H1200"/>
 
-  <text class="cmd" x="200" y="243">/loop-work</text>
-  <text class="role" x="640" y="243">Worker implements a low-risk ticket</text>
+  <text class="cmd" x="200" y="243">herdr: /loop-work</text>
+  <text class="role" x="640" y="243">One Worker session per task builds it</text>
   <path class="rule" d="M184 260.5H1200"/>
 
-  <text class="cmd" x="200" y="307">/loop-review</text>
+  <text class="cmd" x="200" y="307">loop-reviewer</text>
   <text class="role" x="640" y="307">Reviewer reads the diff, read-only</text>
   <path class="rule" d="M184 324.5H1200"/>
 
-  <text class="cmd" x="200" y="371">/loop-work --finish</text>
-  <text class="role" x="640" y="371">Worker applies the review</text>
+  <text class="cmd" x="200" y="371">Draft MR</text>
+  <text class="role" x="640" y="371">Worker fixes findings, hands off in Workspace</text>
   <path class="rule" d="M184 388.5H1200"/>
 
   <text class="time" x="56" y="435">09:30</text>
@@ -61,6 +61,5 @@
   <path class="rule" d="M0 475.5H1200"/>
   <text class="note" x="56" y="520">Then you run</text>
   <text class="gate" x="200" y="520">/loop-e2e</text>
-  <text class="gate" x="370" y="520">/loop-ship</text>
-  <text class="gate" x="550" y="520">/merge-approved</text>
+  <text class="gate" x="370" y="520">/merge-approved</text>
 </svg>

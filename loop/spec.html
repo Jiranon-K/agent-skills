@@ -25,80 +25,44 @@
 <body>
 <main>
 <h1>Loop Engineering บน Claude Code</h1>
-<p class="sub">Coordinator → Worker → Reviewer → เปิด MR → คุณตรวจขั้นสุดท้าย · รันด้วย launchd + <code>claude -p</code> บน Mac</p>
+<p class="sub">Coordinator → Worker (1 herdr session ต่อ 1 task) → Reviewer → Draft MR → คุณ verify ขั้นสุดท้าย · launchd + <code>claude</code> บน Mac · task อยู่ใน Workspace</p>
 
 <h2>1. Goal</h2>
-<p>เปลี่ยนจากการสั่ง AI ทีละคำสั่ง เป็นระบบที่วนทำงานเองทุกวันตอน 9:15 (ถ้าผลดีค่อยเพิ่มความถี่) ระบบจะหยิบเฉพาะ ticket ของคุณที่เสี่ยงต่ำ ทำทีละงาน จนได้ MR ที่มี evidence ครบรอคุณตรวจ คนที่สั่ง merge มีแค่คุณเท่านั้น (ระดับ L2)</p>
+<p>ระบบวนทำงานเองทุกวันตอน 9:15 หยิบ task ของคุณใน Workspace ที่ข้อมูลชัด (ทำได้ถึง risk:high และรายงาน risk ทุกใบ) ทำพร้อมกันได้ 2 ใบ จนได้ Draft MR ที่มี evidence ครบ รอคุณ verify คนที่สั่ง merge มีแค่คุณ (ระดับ L2)</p>
 <table>
-  <tr><th>แหล่งงาน</th><th>project-a</th><th>project-b</th></tr>
-  <tr><td>ticket</td><td>Jira (EX) · assignee = คุณ</td><td>GitLab issue (gitlab-project-b) + Notion Issues DB (อ่านอย่างเดียว)</td></tr>
-  <tr><td>ติด label ที่</td><td>Jira labels</td><td>GitLab issue labels</td></tr>
-  <tr><td>MR ไปที่</td><td><code>staging</code></td><td><code>develop</code></td></tr>
-  <tr><td>repo ที่ Worker แตะได้ (ช่วงแรก)</td><td>web-app</td><td>project-b-web</td></tr>
+  <tr><th>เรื่อง</th><th>ค่า</th></tr>
+  <tr><td>แหล่งงาน</td><td>Workspace (MCP <code>workspace</code>) · space ตาม <code>~/loop/workspace.md</code> · assignee = คุณ</td></tr>
+  <tr><td>routing</td><td>field <code>route</code> (agent/human) + label <code>risk:</code> <code>type:</code> <code>needs:human</code></td></tr>
+  <tr><td>repo ที่ Worker แตะได้</td><td>ทุก repo ใน <code>~/loop/repos</code> (รายละเอียดใน <code>~/Home/docs/repo-map.md</code>)</td></tr>
+  <tr><td>MR</td><td>Draft เข้า base branch ของ repo · label <code>owner:you</code> + <code>needs:human-verify</code> (+ <code>needs:e2e</code> ถ้าแก้ UI)</td></tr>
 </table>
 
-<h2>2. Steps</h2>
-
-<div class="step"><h3>Step 1 · Triage แบบ L1 (อ่านแล้วรายงานอย่างเดียว) <span class="tag done">ติดตั้งแล้ว 19/10</span></h3>
+<h2>2. Flow</h2>
+<div class="step"><h3>Triage (headless, opus)</h3>
 <ul>
-  <li>skill <code>~/.claude/skills/loop-triage/SKILL.md</code> อ่าน Jira, GitLab และ Notion แล้วแนะนำ <code>type:</code>, <code>risk:</code> และ <code>agent:ready</code> หรือ <code>needs:human</code></li>
-  <li>ตัวรัน <code>~/loop/bin/loop-run.sh</code> ทำงานตามลำดับ: กันรันซ้อนด้วย lock → รอเน็ต → เรียก <code>claude -p</code> พร้อม allowlist ที่อ่านได้อย่างเดียว → เขียน log → เด้ง notification ถ้ามีของใหม่</li>
-  <li>launchd <code>~/Library/LaunchAgents/com.example.loop.plist</code> สั่งรันทุกวันตอน 9:15 ถ้าตอนนั้นเครื่องหลับ จะรันชดตอนเครื่องตื่น (ถ้ายังอยู่ในช่วง 9–18)</li>
-</ul>
-<p class="verify">✔ วิธีเช็ค: เปิด <code>~/loop/logs/YYYY-MM-DD.md</code> แล้วเทียบกับ Jira ด้วยตัวเอง รายการและ label ที่แนะนำต้องตรงกับที่คุณคิด 3 วันทำงานติด</p></div>
-
-<div class="step"><h3>Step 2 · Worker แบบสั่งเอง <span class="tag done">ติดตั้งแล้ว 20/10</span></h3>
+  <li><code>/loop-triage</code> อ่าน task ด้วย <code>query_view</code> ตั้ง <code>route</code> และ label ให้ใบที่ยังไม่ triage ไม่ย้าย status ไม่แก้ description</li>
+  <li>ใบที่ข้อมูลไม่ชัด → <code>route=human</code> + <code>needs:human</code> + comment คำถาม (mention เฉพาะเจ้าของ card) และขึ้นในตาราง "ต้อง grill ก่อน Agent เริ่มได้"</li>
+  <li>เลือกได้ไม่เกินจำนวน Worker slot ที่ว่าง (<code>LOOP_MAX_WORKERS</code>, ค่าเริ่ม 2) เรียงตาม release ใกล้สุด → priority → เก่าสุด</li>
+</ul></div>
+<div class="step"><h3>Worker (herdr session, opus คุม · sonnet เขียนโค้ด)</h3>
 <ul>
-  <li>skill <code>/loop-work &lt;ticket&gt;</code> ทำงานตามลำดับ: สร้าง worktree ที่ <code>~/Projects/.loop-worktrees/&lt;ticket&gt;</code> → อ่าน CLAUDE.md ของ repo → เขียนโค้ดและ test → รัน test กับ pipeline job บนเครื่อง → ใช้ <code>/ship</code> ถ้า repo มี (web-app) ถ้าไม่มีใช้ <code>glab mr create</code> → ติด label <code>owner:you</code> + <code>needs:human-verify</code> แล้วเช็คว่าติดจริง → comment ลิงก์ MR ไว้ใน ticket</li>
-  <li>e2e ด้วย Claude in Chrome จะรันเฉพาะเมื่อคุณสั่ง ถ้าเป็นงานที่ไม่ใช่ UI ให้เขียนขั้นตอน verify แบบ manual ไว้ใน MR</li>
-  <li>skill <code>/merge-approved &lt;ticket&gt;</code> (คุณสั่งเองที่หน้าเครื่อง) จะถอด label ออกแล้ว merge แบบ squash + ลบ source branch</li>
-</ul>
-<p class="verify">✔ วิธีเช็ค: สั่งเองแล้วได้ MR ดี 2 ตัวขึ้นไป label ครบ test ผ่าน และงานที่คุณเปิดค้างไว้ไม่ถูกกระทบ</p></div>
-
-<div class="step"><h3>Step 3 · Reviewer sub-agent <span class="tag done">ติดตั้งแล้ว 20/10</span></h3>
+  <li><code>loop-run.sh</code> สร้าง worktree บน branch <code>loop/&lt;task&gt;</code> (ไม่ตั้ง upstream) แล้วเปิด herdr space <code>loop &lt;task&gt;</code> ที่รัน <code>/loop-work</code> แบบ interactive เข้าไปดูหรือสั่งต่อได้</li>
+  <li>ลำดับ: <code>start_work</code> + In Progress → TDD → verify ผ่าน <code>loop-heavy</code> (build/test ทีละตัวทั้งเครื่อง) → agent <code>loop-reviewer</code> (read-only) → แก้ findings → <code>loop-push</code> → Draft MR → <code>add_task_link</code> + In Review → comment handoff → <code>finish_work</code></li>
+  <li>repo ที่ยังห้าม agent push → หยุดที่ branch ในเครื่อง แล้ว comment คำสั่ง push / เปิด MR ให้คุณ</li>
+  <li>ข้อมูลไม่ชัดระหว่างทาง → หยุด, comment คำถาม, <code>needs:human</code></li>
+</ul></div>
+<div class="step"><h3>Summary และ gate ของคุณ</h3>
 <ul>
-  <li>ก่อนเปิด MR ให้ <code>/loop-work</code> เรียก Reviewer ตัวที่แยกจาก Worker มารัน <code>simplify</code> + <code>code-review</code> ตาม pattern ของ repo จากนั้น Worker แก้ findings แล้วแนบผล review ไว้ใน MR</li>
-  <li>Reviewer ให้ได้แค่ evidence ไม่มีสิทธิ์ approve</li>
-</ul>
-<p class="verify">✔ วิธีเช็ค: MR 2 ตัวมีส่วน "Review findings" และคุณเห็นว่าจับปัญหาได้จริง</p></div>
+  <li>9:30 <code>loop-summary</code> แสดงสรุปรอบล่าสุด งานค้าง และ task ที่ต้อง grill</li>
+  <li>คุณ verify ตาม checklist ใน comment → <code>/loop-e2e</code> (ถ้าแก้ UI) → <code>/merge-approved</code> ถ้าต้องแก้: ปิด MR แล้วรับงานต่อเอง</li>
+</ul></div>
 
-<div class="step"><h3>Step 4 · ตั้งเวลาให้ Worker <span class="tag done">ติดตั้งแล้ว 20/10</span></h3>
+<h2>3. Guard rails</h2>
 <ul>
-  <li>เพิ่มใน <code>loop-run.sh</code>: หลัง triage เสร็จ ถ้ามี ticket ที่คุณติด <code>agent:ready</code> ไว้ และไม่มีงานค้าง ก็เรียก <code>/loop-work</code> 1 งาน</li>
-  <li>เช็ค RAM ก่อนเริ่ม ถ้าเหลือน้อยให้ข้ามรอบแล้วจดลง log จบรอบแล้วต้องไม่มีโปรเซส karma หรือ headless Chrome ค้าง</li>
-  <li>allowlist ของ Worker ให้แก้ไฟล์ได้เฉพาะใน worktree ใช้ git/glab ได้ตามที่จำเป็น ส่วน force push, merge และการอ่าน <code>.env*</code> ห้ามเสมอ</li>
-</ul>
-<p class="verify">✔ วิธีเช็ค: รันอัตโนมัติ 1 สัปดาห์ ได้ MR ที่ใช้ได้โดยไม่มีงานรันซ้อนกัน</p></div>
-
-<div class="step"><h3>Step 5 · ให้ Coordinator ติด label เอง <span class="tag done">ติดตั้งแล้ว 20/10 · ติด label แล้ว 11 ใบ</span></h3>
-<ul>
-  <li>triage เปลี่ยนจากรายงานเฉยๆ เป็นติด label จริง <code>agent:ready</code> ติดได้เฉพาะงานที่เข้าเกณฑ์ risk:low ครบทุกข้อ ถ้าไม่ชัดให้ติด <code>needs:human</code> พร้อมคำถาม</li>
-</ul>
-<p class="verify">✔ วิธีเช็ค: 1 สัปดาห์ไม่มี <code>agent:ready</code> ที่คุณต้องถอดออกเอง</p></div>
-
-<h2>3. Success criteria</h2>
-<ul>
-  <li>ทุกรอบจบที่ MR รอตรวจ: ไป staging หรือ develop, ผูกกับ ticket, มี label <code>needs:human-verify</code> + <code>owner:you</code></li>
-  <li>MR มี evidence ครบ: ผลของ simplify และ review จาก Reviewer, คำสั่ง test และ pipeline ที่รันพร้อมผล, รูปจาก e2e หรือขั้นตอน verify แบบ manual</li>
-  <li>ไม่เคยแตะ ticket ของคนอื่น ไม่เคยทำ 2 งานพร้อมกัน และไม่เคย merge เอง</li>
-  <li>เรื่องที่ไม่ชัดถูกส่งไป <code>needs:human</code> ทั้งหมด ไม่มีการเดาเอง</li>
-</ul>
-
-<h2>4. Out of scope</h2>
-<ul>
-  <li>L3 (AI merge เอง) และการ deploy</li>
-  <li>รันบน Cloud หรือ GitLab CI ตอนปิดเครื่อง และการตั้งเวลาปลุกเครื่องด้วย <code>pmset</code></li>
-  <li>repo อื่นนอกจาก web-app กับ project-b-web จนกว่า repo นั้นจะมี CLAUDE.md</li>
-  <li>การแก้ <code>ship.sh</code> และ Paperclip (ปิดไว้แล้ว ข้อมูลยังอยู่ที่ <code>~/.paperclip</code>)</li>
-</ul>
-
-<h2>5. Risks / open questions</h2>
-<ul>
-  <li><b>ผล triage ไม่เหมือนกันทุกรอบ:</b> สองรอบติดกันได้ needs:human 4 กับ 5 ใบ ใน Step 5 ต้องกำหนดเกณฑ์ให้ตายตัวกว่านี้</li>
-  <li><b>macOS TCC:</b> launchd เข้า <code>~/Documents</code> ไม่ได้ ระบบจึงอยู่ที่ <code>~/loop</code> ส่วน Worker ที่ต้องอ่าน standup ใน Documents จะติดเรื่องเดียวกัน</li>
-  <li><b>Stop hook:</b> <code>session-digest.sh</code> รันหลังทุก session รวมถึงรอบของ loop ด้วย อาจทำให้ standup digest มีข้อมูลของ loop ปนเข้ามา</li>
-  <li><b>GitLab account ร่วม:</b> คำสั่งที่พิมพ์ใน MR comment ไม่น่าเชื่อถือ การ merge จึงต้องสั่งที่หน้าเครื่องเท่านั้น</li>
-  <li><b>ช่วงเครื่องหลับ:</b> รอบที่พลาดไปจะถูกรันชด 1 ครั้งตอนเครื่องตื่น และมีขั้นรอเน็ตไม่เกิน 2 นาทีแล้ว</li>
+  <li>ห้ามอ่าน <code>.env*</code> / <code>.npmrc</code> / secret ห้ามแตะ production config ห้ามรัน migration กับข้อมูลจริง</li>
+  <li><code>git push</code> ตรง ๆ ถูก deny ทั้งหมด push ได้ผ่าน <code>loop-push</code> เท่านั้น ซึ่งปฏิเสธ branch ที่ป้องกันไว้ และไม่รับ refspec หรือ force</li>
+  <li>ห้าม merge, approve, rebase, reset และห้าม merge เอง</li>
+  <li>comment ของ Loop ขึ้นต้นด้วย <code>🤖 [loop-status]</code> และ post ใหม่เฉพาะตอนมีเหตุการณ์ (MCP ยังแก้ comment ไม่ได้)</li>
 </ul>
 
 <h2>คำสั่งที่ใช้บ่อย</h2>
@@ -106,12 +70,12 @@
   <tr><th>ทำอะไร</th><th>คำสั่ง</th></tr>
   <tr><td>รันเดี๋ยวนี้</td><td><code>launchctl kickstart gui/501/com.example.loop</code></td></tr>
   <tr><td>รันนอกเวลางาน</td><td><code>FORCE=1 ~/loop/bin/loop-run.sh</code></td></tr>
-  <tr><td>หยุดชั่วคราว</td><td><code>launchctl bootout gui/501/com.example.loop</code></td></tr>
-  <tr><td>เปิดใหม่</td><td><code>launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.example.loop.plist</code></td></tr>
-  <tr><td>project-b: push + เปิด MR</td><td><code>/loop-ship &lt;ticket&gt;</code></td></tr>
-  <tr><td>e2e + แนบรูปเข้า MR</td><td><code>/loop-e2e &lt;ticket&gt;</code></td></tr>
-  <tr><td>ตรวจแล้วผ่าน → merge</td><td><code>/merge-approved &lt;ticket&gt;</code></td></tr>
   <tr><td>รันแค่ triage</td><td><code>TRIAGE_ONLY=1 FORCE=1 ~/loop/bin/loop-run.sh</code></td></tr>
+  <tr><td>Worker พร้อมกัน 3 ใบ</td><td><code>LOOP_MAX_WORKERS=3 ~/loop/bin/loop-run.sh</code></td></tr>
+  <tr><td>หยุดชั่วคราว / เปิดใหม่</td><td><code>launchctl bootout gui/501/com.example.loop</code> · <code>launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.example.loop.plist</code></td></tr>
+  <tr><td>e2e + แนบรูปเข้า MR</td><td><code>/loop-e2e &lt;task&gt;</code></td></tr>
+  <tr><td>verify ผ่าน → merge</td><td><code>/merge-approved &lt;task&gt;</code></td></tr>
+  <tr><td>สถานะ task ของ Loop</td><td><code>~/loop/bin/loop-state list</code></td></tr>
   <tr><td>ดูผล</td><td><code>~/loop/logs/YYYY-MM-DD.md</code> · <code>~/loop/state/last-triage.md</code></td></tr>
 </table>
 </main>

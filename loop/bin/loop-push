@@ -1,0 +1,15 @@
+#!/bin/bash
+# The only way a Loop Worker pushes: the current feature branch to the same name on origin, with upstream.
+# Takes no arguments, so no refspec, force flag or other remote can be passed. bash 3.2 compatible.
+#
+#   loop-push
+set -u
+
+[ $# -eq 0 ] || { echo "usage: loop-push (no arguments: pushes the current branch to origin)" >&2; exit 2; }
+branch=$(git branch --show-current)
+case "$branch" in
+  ""|main|master|staging|develop|production|release/*|hotfix/*)
+    echo "loop-push: refusing to push '${branch:-detached HEAD}'" >&2
+    exit 1 ;;
+esac
+exec git push -u origin "refs/heads/$branch:refs/heads/$branch"

@@ -88,8 +88,13 @@ done
 
 copy_template loop/bin/loop-run.sh "$HOME/loop/bin/loop-run.sh"
 copy_template loop/repos.example "$HOME/loop/repos"
+copy_template loop/workspace.example.md "$HOME/loop/workspace.md"
 # loop-state holds no placeholders and is the protocol the runner and loop skills share: keep it current.
 link loop/bin/loop-state "$HOME/loop/bin/loop-state"
+# loop-heavy serializes heavy commands across parallel Workers.
+link loop/bin/loop-heavy "$HOME/loop/bin/loop-heavy"
+# loop-push is the only way a Worker pushes: current feature branch, no refspec, no force.
+link loop/bin/loop-push "$HOME/loop/bin/loop-push"
 
 # SessionStart hook and loop-run.sh call it; it reads each repo's own .worktreelinks.
 link scripts/wt-setup "$HOME/.claude/hooks/wt-setup"

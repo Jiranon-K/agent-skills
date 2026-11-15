@@ -55,9 +55,9 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 | design | `ui-ux-pro-max` | Searchable styles, palettes, fonts, UX rules |
 | personal | `ui-inspire` | Researches UI patterns, then designs an original UI |
 | personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
-| loop | `loop-triage`, `loop-work`, `loop-review` | Coordinator, worker and reviewer |
+| loop | `loop-triage`, `loop-work`, `loop-review` | Coordinator, worker (one herdr session per task) and reviewer |
 | loop | `loop-summary` | Shows summaries since last run |
-| loop | `loop-e2e`, `loop-ship`, `merge-approved` | Human gates |
+| loop | `loop-e2e`, `merge-approved` | Human gates |
 
 </details>
 
@@ -98,8 +98,7 @@ For [herdr](https://herdr.dev): `brew install herdr`, `herdr integration install
 | Placeholder | Means |
 | --- | --- |
 | `gitlab.example.com`, `example-team` | your GitLab host and group |
-| `example.atlassian.net`, `EX-123`, `PB-*` | your Jira site and project keys |
-| `https://www.notion.so/<issues-db-id>` | your Notion issues database |
+| `workspace.example.com`, `APP-*`, `PB-*` | your Workspace tracker URL and space keys (`~/loop/workspace.md`) |
 | `project-a` / `web-app`, `project-b` / `project-b-web`, `project-b-api` | your workspace folders and repos |
 | `owner:you`, `your.username`, `@you` | your MR label and usernames |
 | `/Users/YOUR_USER` | your home folder (launchd does not expand `~`) |
@@ -108,7 +107,7 @@ For [herdr](https://herdr.dev): `brew install herdr`, `herdr integration install
 
 ## Loop Engineering
 
-<p align="center"><img src="docs/assets/loop.svg" alt="Loop Engineering: at 09:15 launchd runs loop-triage, loop-work, loop-review and loop-work --finish; at 09:30 loop-summary; then you run loop-e2e, loop-ship and merge-approved" width="100%"></p>
+<p align="center"><img src="docs/assets/loop.svg" alt="Loop Engineering: at 09:15 launchd runs loop-triage, then opens one herdr session per picked task running loop-work with an independent loop-reviewer; at 09:30 loop-summary; then you verify the Draft MR and run loop-e2e and merge-approved" width="100%"></p>
 
 Logs, state and summaries stay in `~/loop` and are not committed. To schedule it, copy `loop/launchd/com.example.loop.plist` to `~/Library/LaunchAgents/`, fix its paths, then:
 

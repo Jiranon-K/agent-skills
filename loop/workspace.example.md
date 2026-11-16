@@ -21,9 +21,9 @@ Status names per step. Look the ids up with `list_spaces` by name.
 
 Tasks in the `Triage` status are not ready: never route or pick them.
 
-## Current sprint (the Loop works only inside it)
+## Current sprint (the Loop finishes it first)
 
-Only tasks in the space's current sprint are routed, commented on or picked. Everything else is a status row.
+Tasks in the space's current sprint are routed and picked first. Tasks outside it are picked only when no sprint task can be picked.
 
 | Space | Sprint id | Name | Ends |
 |---|---|---|---|

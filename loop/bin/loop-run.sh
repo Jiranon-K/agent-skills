@@ -2,7 +2,9 @@
 # Loop Engineering runner. launchd (com.example.loop) calls this daily at 9:15.
 # One run: Coordinator (triage + route + pick, headless) → for each picked task, while Worker slots are free:
 #   prepare a worktree and open a visible herdr session running `/loop-work <task> <repo> <risk>`.
-#   The Worker session claims the task, builds, gets an independent review, opens a Draft MR and records loop-state itself.
+#   The Worker session claims the task, builds, gets an independent review, opens a Draft MR and records loop-state itself,
+#   then calls loop-next so a freed slot is filled the same day. Worktrees live in fixed slots (.claude/worktrees/loop-<n>)
+#   so Claude asks folder trust once per slot.
 # Manual run outside working hours: FORCE=1 ~/loop/bin/loop-run.sh
 # Triage only (no Worker):          TRIAGE_ONLY=1 ~/loop/bin/loop-run.sh
 # Parallel Workers (default 2):     LOOP_MAX_WORKERS=3 ~/loop/bin/loop-run.sh
@@ -113,6 +115,11 @@ WORKSPACE_DENY=(
   "mcp__workspace__decide_request"
 )
 
+# Free the slots of tasks whose Worker is done; their branches stay.
+for T in $("$STATE" list | awk '$2 ~ /status=(mr-open|ready-to-ship|merged)/ && / wt=/ { print $1 }'); do
+  "$STATE" release "$T" >/dev/null 2>&1 || log "## $NOW slot of $T not released (uncommitted changes)"
+done
+
 # ---------- Coordinator ----------
 PREV="(none)"
 [ -f "$LAST" ] && PREV=$(cat "$LAST")
@@ -188,6 +195,8 @@ WORKER_ALLOW=(
   "Bash(glab mr create:*)" "Bash(glab mr view:*)" "Bash(glab mr update:*)" "Bash(glab mr note:*)"
   "Bash(ls:*)" "Bash(cat:*)" "Bash(head:*)" "Bash(tail:*)" "Bash(grep:*)" "Bash(find:*)"
   "Bash(wc:*)" "Bash(mkdir:*)" "Bash(ps:*)" "Bash(pgrep:*)" "Bash(pkill -f karma:*)"
+  "Bash(sed:*)" "Bash(which:*)" "Bash(docker:*)" "Bash(colima status:*)" "Bash(glab api projects/:*)"
+  "Bash(~/loop/bin/loop-next)" "Bash($HOME/loop/bin/loop-next)"
   "Bash(~/loop/bin/loop-state:*)" "Bash($HOME/loop/bin/loop-state:*)"
   "Bash(~/loop/bin/loop-heavy:*)" "Bash($HOME/loop/bin/loop-heavy:*)"
   "${WORKSPACE_READ[@]}" "mcp__workspace__get_work_context"
@@ -198,7 +207,7 @@ WORKER_ALLOW=(
 )
 WORKER_DENY=(
   "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}"
-  "Bash(git push:*)" "Bash(git -C:*)"
+  "Bash(git push:*)" "Bash(git -C:*)" "Bash(glab api -X:*)" "Bash(glab api --method:*)"
 )
 
 # Opens a visible Worker session: a herdr space when the window is up, else a background herdr-core terminal.
@@ -252,7 +261,10 @@ start_worker() {
     return
   fi
 
-  wt=$("$STATE" path "$repo" "$task")
+  if ! wt=$("$STATE" slot "$repo" "$MAX_WORKERS"); then
+    log "## $NOW worker skipped — $task: every $repo slot is in use (loop-state list; blocked tasks keep theirs)"
+    return
+  fi
   branch="loop/$(echo "$task" | tr '[:upper:]' '[:lower:]')"
   mkdir -p "$(dirname "$wt")"
   if ! { git -C "$repo_dir" fetch origin "$base" >/dev/null 2>&1 \
@@ -263,7 +275,7 @@ start_worker() {
     return
   fi
   "$HOME/.claude/hooks/wt-setup" "$wt" >/dev/null 2>&1 || log "## $NOW worker: wt-setup failed for $wt (local files not linked)"
-  "$STATE" set "$task" working repo="$repo" branch="$branch"
+  "$STATE" set "$task" working repo="$repo" branch="$branch" wt="$wt"
   DID=1
   if where=$(open_session "$task" "$repo" "$risk" "$wt"); then
     log "## $NOW worker started $task ($repo, risk:$risk) — $where" "worktree: $wt" ""

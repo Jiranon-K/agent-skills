@@ -1,0 +1,12 @@
+#!/bin/bash
+# Starts the next Loop run now, detached from the caller: a Worker calls it when its task ends,
+# so a freed slot is filled the same day. It kicks the launchd job whose plist runs loop-run.sh;
+# loop-run.sh keeps its own working-hours window and run lock. bash 3.2 compatible.
+#
+#   loop-next
+set -u
+
+plist=$(grep -l "loop-run.sh" "$HOME"/Library/LaunchAgents/*.plist 2>/dev/null | head -n 1)
+[ -n "$plist" ] || { echo "loop-next: no LaunchAgent runs loop-run.sh" >&2; exit 1; }
+label=$(basename "$plist" .plist)
+launchctl kickstart "gui/$(id -u)/$label" && echo "loop-next: started $label"

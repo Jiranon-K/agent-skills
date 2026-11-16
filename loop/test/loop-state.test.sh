@@ -83,5 +83,20 @@ git -C "$TMP/main/.claude/worktrees/EX-7" commit -q --allow-empty -m local
 errs "reset refuses unpushed commits" reset EX-7
 [ -d "$TMP/main/.claude/worktrees/EX-7" ] && ok || fail "unpushed worktree kept"
 
+# slot / release
+grep -q '^main-repo' "$LOOP_DIR/repos" || printf 'main-repo %s main\n' "$TMP/main" >> "$LOOP_DIR/repos"
+S1=$("$LS" slot main-repo 2)
+eq "first slot" "$S1" "$TMP/main/.claude/worktrees/loop-1"
+"$LS" set EX-8 working repo=main-repo wt="$S1"
+eq "path follows wt" "$("$LS" path main-repo EX-8)" "$S1"
+eq "taken slot is skipped" "$("$LS" slot main-repo 2)" "$TMP/main/.claude/worktrees/loop-2"
+git -C "$TMP/main" worktree add -q -b loop/ex-8 "$S1" HEAD
+errs "no slot beyond max" slot main-repo 1
+"$LS" release EX-8
+[ -d "$S1" ] && fail "release removes the slot worktree" || ok
+eq "release forgets wt" "$("$LS" get EX-8 wt)" ""
+git -C "$TMP/main" show-ref -q --verify refs/heads/loop/ex-8 && ok || fail "release keeps the branch"
+eq "slot is free again" "$("$LS" slot main-repo 1)" "$S1"
+
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

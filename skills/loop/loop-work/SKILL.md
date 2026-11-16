@@ -39,7 +39,7 @@ You orchestrate (Opus). Delegate implementation to `Agent` subagents with `model
    - Open the MR as a **Draft** into the base branch with the repo's MR template: `glab mr create --draft --target-branch <base> --title ... --description ... --label "owner:you,needs:human-verify"` (add `needs:e2e` when the change has UI; project-b repos take `-R` from `workspace.md`). If a script opened the MR, make it a Draft and add the labels with `glab mr update <n> --draft --label ...`. Confirm with `glab mr view <n>` that it is a Draft and the labels are there.
    - Workspace: `add_task_link <task> <MR URL>`, `transition_task` to the "MR open" status, then post the handoff comment (below), then `finish_work <task> done "<one line>"`.
    - `~/loop/bin/loop-state set <task> mr-open branch=<branch> mr=<MR URL> ui=<yes|no>`.
-   - **Local delivery** (remote not allowed): commit everything, write the MR title and description to `~/loop/state/mr-draft-<task>.md`, post the handoff comment with "MR (Draft): ยังไม่เปิด — repo นี้ห้าม agent push" and the exact `git push` / `glab mr create --draft` commands for the owner, `finish_work <task> done`, leave the status at "Working", and run `~/loop/bin/loop-state set <task> ready-to-ship branch=<branch> ui=<yes|no>`.
+   - **Local delivery** (remote not allowed): commit everything, write the MR title and description to `~/loop/state/mr-draft-<task>.md`, post the handoff comment with "MR (Draft): ยังไม่เปิด — repo นี้ห้าม agent push" and the exact commands for the owner, run from the main checkout because the slot worktree is freed later (`git -C <main checkout> push -u origin <branch>`, then `glab mr create --draft ...`), `finish_work <task> done`, leave the status at "Working", and run `~/loop/bin/loop-state set <task> ready-to-ship branch=<branch> ui=<yes|no>`.
 9. **Blocked** at any point: `update_work_state awaiting_input` with the reason, post a question comment in the format of the `loop-triage` skill (mention only the assignee; name who to ask if known), add label `needs:human`, set `route=human`, `finish_work <task> error "<reason>"`, and `~/loop/bin/loop-state set <task> blocked`. Leave the status where it is.
 
 ## Handoff comment (Thai, for a human; mention only the assignee)
@@ -61,4 +61,4 @@ MR (Draft): <url>
 
 ## Final message
 
-End the session with one line: `RESULT: mr-open <url>` | `RESULT: ready-to-ship <branch>` | `RESULT: blocked: <reason>`.
+After the last `loop-state set` (any outcome), run `~/loop/bin/loop-next` so the runner fills the freed slot. Then end the session with one line: `RESULT: mr-open <url>` | `RESULT: ready-to-ship <branch>` | `RESULT: blocked: <reason>`.

@@ -21,6 +21,17 @@ Status names per step. Look the ids up with `list_spaces` by name.
 
 Tasks in the `Triage` status are not ready: never route or pick them.
 
+## Current sprint (the Loop works only inside it)
+
+Only tasks in the space's current sprint are routed, commented on or picked. Everything else is a status row.
+
+| Space | Sprint id | Name | Ends |
+|---|---|---|---|
+| APP | `<sprint id>` | 1.2.0 · 25 Nov | the release date in the name |
+| PB | `<sprint id>` | 2026-W46 | Sunday of that ISO week |
+
+Read a sprint's tasks with `query_view` `space=<key>`, `sprint=<id>`, `assignee=me`, `open=true`. Always use the listed sprint; never switch on your own. When its end has passed (APP names carry the release date, PB names are ISO weeks), keep using it and add one line to the report: `sprint <name> จบแล้ว — อัปเดต ~/loop/workspace.md` (name the next sprint and its id if an open task carries one).
+
 ## Labels the loop writes
 
 - `risk:low|medium|high`, and `type:<x>` only when the task has no `type:` label yet (APP uses `type:story`, `type:bug`, `type:feature`, `type:chore`, `type:docs`, `type:test`).

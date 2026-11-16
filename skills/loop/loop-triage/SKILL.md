@@ -11,7 +11,7 @@ First read `~/loop/workspace.md` (tracker facts: spaces, status names, URL and m
 
 ## Hard rules
 
-- **Only the owner's tasks**: tasks assigned to the calling member, in the spaces listed in `workspace.md`.
+- **Only the owner's tasks in the current sprint**: tasks assigned to the calling member, in the spaces and current sprints listed in `workspace.md`. Tasks outside the current sprint are never routed, labelled, commented on or picked; count them in the report only.
 - **Writes allowed**: `update_task` with `route` and `labels` only, and `add_comment` for a loop comment. Never write description, title, assignee, priority, due date or status. Never transition, create, link or delete anything. Never edit files.
 - **Labels are replace-all**: read the task's current labels, add yours, write the whole list back. Never remove a label you did not add, except swapping your own `risk:`/`type:`/`needs:human` after an answer re-classifies the task.
 - **Triaged** = `route` is set, or the task has `needs:human`. Only untriaged tasks get routed. Two exceptions: an answer arrived on a `needs:human` task (see "Comments"), or the owner removed `needs:human` and cleared `route`.
@@ -22,7 +22,8 @@ First read `~/loop/workspace.md` (tracker facts: spaces, status names, URL and m
 
 1. `list_spaces` once: status ids and names per space.
 2. Per space in `workspace.md`: `query_view` with `space=<key>`, `assignee=me`, `open=true`. It returns key, id, title, status, labels, route and `updatedAt`. Do not use `list_tasks`: its output is too large.
-3. `get_task <key>` only for a task you must classify or re-check (description, acceptance criteria, dependencies, links). `list_comments <key>` only for tasks with `needs:human` or a loop comment, to find answers. Never call `get_work_context` here.
+3. Per space: take the current sprint from `workspace.md` "Current sprint" and list its tasks with `query_view` `space=<key>`, `sprint=<id>`, `assignee=me`, `open=true`. Only these tasks are worked on.
+4. `get_task <key>` only for a task you must classify or re-check (description, acceptance criteria, dependencies, links). `list_comments <key>` only for tasks with `needs:human` or a loop comment, to find answers. Never call `get_work_context` here.
 
 Tasks in the `Triage` status or in a review or later stage are status rows only: never route or pick them.
 
@@ -58,8 +59,8 @@ A loop comment is any comment whose first line starts with `🤖 [loop-status]`.
 
 ## Pick
 
-The prompt gives `Worker slots: N`. Pick up to N tasks (0 → none) that have `route=agent`, are in their space's "Pick from" status, are not in the "Handled tickets" list, and whose repo is in `~/loop/repos`. Order:
-1. The nearest `release:` label (or the current sprint, or the nearest due date) first.
+The prompt gives `Worker slots: N`. Pick up to N tasks (0 → none) that are in the current sprint, have `route=agent`, are in their space's "Pick from" status, are not in the "Handled tickets" list, and whose repo is in `~/loop/repos`. Order:
+1. The nearest due date first.
 2. Then priority: URGENT > HIGH > MEDIUM > LOW.
 3. Then oldest `updatedAt`.
 
@@ -76,6 +77,7 @@ Then a Thai markdown report. Every task cell is a link to its task URL from `wor
 release: web-app ถัดไป <date> (cut-off จันทร์ 14:00) · merge-back: <เคลียร์แล้ว | รอ merge back N commits>
 
 ### สรุป
+- sprint: <APP name> · <PB name> | ใน sprint: N | นอก sprint (ไม่แตะ): N
 - งานของฉัน: N (APP n · PB n) | route รอบนี้: N | agent: N | needs:human: N | เคลื่อนไหว: N
 
 ### route รอบนี้

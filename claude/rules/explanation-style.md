@@ -13,4 +13,9 @@ Every reply that explains something (how a thing works, why it is that way, what
 - **`unslop`**: short declarative sentences, active voice, no em dash, no colon as a mid-sentence connector, no framing labels ("key insight", "TL;DR", "the tricky part"), no forced groups of three, no decorative emoji, no chatbot phrases, no closing summary that repeats the answer.
 - **A conversation, not a lecture.** No quizzes and no pacing theater. Put any offer to go deeper at the end, in one line.
 
+## Artifacts
+
 A page that explains (an Artifact) follows the same rules. Published overviews of my systems are Claude Artifacts, never a local `.html` file.
+
+- **Colors**: the Claude brand palette. Crail `#C15F3C` is the one accent, Pampas `#F4F3EE` the page ground, White `#FFFFFF` the surfaces, Cloudy `#B1ADA1` the neutral for rules and secondary marks. Derive ink, muted text and the dark theme from these (warm near-black ground, a lighter Crail); add no second accent hue. Use Crail to mark what matters most on the page, such as what the reader must do.
+- **Always a picture**: every Artifact that presents information carries at least one graph of its real numbers or an illustration of the thing it explains (an inline SVG diagram of the system, a flow, a before and after). Numbers on the page get a chart drawn to scale with the values labelled; never invent data to have a chart. With no numbers, draw the illustration.

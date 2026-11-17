@@ -18,8 +18,6 @@ CONFIG="$LOOP_DIR/config.sh"
 . "$CONFIG"
 MAX_WORKERS="${LOOP_MAX_WORKERS:-2}"
 MAX_DESIGNERS="${LOOP_MAX_DESIGNERS:-1}"
-export LOOP_ARCHIVE_DIR="${LOOP_ARCHIVE_DIR:-$LOOP_DIR/archive}"
-export LOOP_ARCHIVE_DAYS="${LOOP_ARCHIVE_DAYS:-30}"
 # launchd has no user PATH; claude is a native install, glab/git/node come from Homebrew.
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 

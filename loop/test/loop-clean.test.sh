@@ -105,5 +105,11 @@ old "$LOOP_DIR/archive/$MONTH/EX-1"
 LOOP_ARCHIVE_DAYS=0 "$CLEAN" >/dev/null
 exists "zero days keeps the archive forever" "$LOOP_DIR/archive/$MONTH/EX-1"
 
+echo "LOOP_LOG_DAYS=0" > "$LOOP_DIR/config.sh"
+echo log > "$LOOP_DIR/logs/2020-02-02.md"
+old "$LOOP_DIR/logs/2020-02-02.md"
+"$CLEAN" >/dev/null
+exists "days set in config.sh hold without the runner" "$LOOP_DIR/logs/2020-02-02.md"
+
 echo "pass $PASS fail $FAIL"
 [ "$FAIL" -eq 0 ]

@@ -2,6 +2,7 @@
 set -u
 
 LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
+[ -f "$LOOP_DIR/config.sh" ] && . "$LOOP_DIR/config.sh"
 STATE="${LOOP_STATE:-$LOOP_DIR/bin/loop-state}"
 SPEC="${LOOP_SPEC:-$LOOP_DIR/bin/loop-spec}"
 ARCHIVE="${LOOP_ARCHIVE_DIR:-$LOOP_DIR/archive}"
@@ -22,6 +23,7 @@ never touches a worktree or a task the Loop is still working on.
 
 Days kept (0 keeps forever): LOOP_ARCHIVE_DAYS=30 LOOP_TICKET_DAYS=14 LOOP_LOG_DAYS=60.
 The archive lives in LOOP_ARCHIVE_DIR (default $LOOP_DIR/archive), one folder per month and task.
+Set any of these in $LOOP_DIR/config.sh; they then hold for every caller.
 USAGE
   exit 2
 }

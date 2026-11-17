@@ -11,7 +11,7 @@ Find what made the Loop stop, redo or mislead this week, and turn each repeat in
 
 1. `~/loop/logs/<date>.md` for each day in the window: every `FAILED`, `skipped` and `blocked` line.
 2. `~/loop/bin/loop-state list` and `~/loop/bin/loop-spec list`: tasks that are `blocked`, designs that are `redo` or `blocked`.
-3. Per design package touched in the window (`~/loop/designs/<task>/`): `feedback.md` (what the owner or a Worker pushed back on), `blocked.md`, and `decisions.tsv` rows whose result is a revert, a scrap or `dropped`.
+3. Per design package touched in the window (`~/loop/designs/<task>/`, and `~/loop/archive/<month>/<task>/` for tasks that finished): `feedback.md` (what the owner or a Worker pushed back on), `blocked.md`, and `decisions.tsv` rows whose result is a revert, a scrap or `dropped`.
 4. Session transcripts of the loop's sessions in the window: `~/.claude/projects/<slug>/*.jsonl`, where the slug is a Worker slot path (`…-claude-worktrees-loop-<n>`) or a repo's main checkout running `/loop-design`. Read only sessions whose first user message starts with `/loop-work` or `/loop-design`. Never read any other session.
 5. Merged loop MRs in the window (`loop-state list merged`): what the owner changed after the Draft opened, from `glab mr view <n> --comments` and the commits after the Worker's last one.
 
@@ -28,5 +28,7 @@ Follow the pstack **reflect** skill's stance (`~/loop/pstack/skills/reflect/SKIL
 ## Report and wait
 
 Show one table: finding · evidence · seen on · proposed edit (file and the exact new text) · why this place. Then the numbers for the week: designs proposed, approved first time, redone; MRs opened, merged, reworked after review; tasks blocked and why.
+
+Save the report as `~/loop/reflect/<ISO year>-W<week>.md` (`date +%G-W%V`), in English, with the owner's choices added once they are made.
 
 Wait for the owner to pick which edits to apply. Apply only those, in `~/Home/agent-skills` and in the installed copy under `~/.claude/skills/`, then run `~/Home/agent-skills/loop/test/loop-spec.test.sh` and `loop-state.test.sh` when a script changed. Never commit or push.

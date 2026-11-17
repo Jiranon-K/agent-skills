@@ -30,12 +30,12 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 
 | Folder | Count | Holds |
 | :--- | :--- | :--- |
-| **[skills/](skills)** | 18 | engineering, productivity, design, loop, personal |
+| **[skills/](skills)** | 21 | engineering, productivity, design, loop, personal |
 | **[claude/agents/](claude/agents)** | 53 | subagents grouped by category |
 | **[claude/rules/](claude/rules)** | 5 | code style, testing, self-improvement, pstack in Thai, pstack models |
 | **[plugins.md](plugins.md)** | 9 | installed with `claude plugin`, not copied |
 | **[loop/](loop)** | — | Loop Engineering runner and launchd job |
-| **[scheduled/](scheduled)** | 2 | daily-standup, loop-summary |
+| **[scheduled/](scheduled)** | 3 | daily-standup, loop-summary, loop-reflect |
 | **[herdr/](herdr)** | — | terminal multiplexer configs |
 | **[docs/prompting-patterns.md](docs/prompting-patterns.md)** | 11 | copy-paste prompts (reference, not loaded) |
 
@@ -55,9 +55,10 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 | design | `ui-ux-pro-max` | Searchable styles, palettes, fonts, UX rules |
 | personal | `ui-inspire` | Researches UI patterns, then designs an original UI |
 | personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
-| loop | `loop-triage`, `loop-work`, `loop-review` | Coordinator, worker (one herdr session per task) and reviewer |
+| loop | `loop-triage`, `loop-design`, `loop-work`, `loop-review` | Coordinator, designer (architect sketch and proposed spec), worker (one herdr session per task) and reviewer |
 | loop | `loop-summary` | Shows summaries since last run |
-| loop | `loop-e2e`, `merge-approved` | Human gates |
+| loop | `loop-design-review`, `merge-approved`, `loop-e2e` | Human gates: approve the design, merge the MR, browser e2e by hand when the Worker could not run it |
+| loop | `loop-reflect` | Weekly learning pass that proposes edits to the loop skills |
 
 </details>
 
@@ -119,6 +120,7 @@ launchctl load ~/Library/LaunchAgents/com.example.loop.plist
 | --- | --- | --- |
 | `daily-standup` | 17:47 Mon–Fri | Standup for Discord from the day's sessions and git activity |
 | `loop-summary` | 09:30 daily | Shows new loop summaries |
+| `loop-reflect` | Friday 16:00 | Proposes edits to the loop skills from the week's runs |
 
 ---
 

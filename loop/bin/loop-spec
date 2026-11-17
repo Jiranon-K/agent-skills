@@ -1,0 +1,168 @@
+#!/bin/bash
+set -u
+
+LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
+DESIGNS="$LOOP_DIR/designs"
+SPECS="$LOOP_DIR/specs"
+STALE_MINUTES="${LOOP_DESIGN_STALE_MINUTES:-180}"
+STARTABLE="none redo blocked"
+
+usage() {
+  cat >&2 <<'USAGE'
+loop-spec owns the design packages in $LOOP_DIR/designs and the approval of specs.
+
+  loop-spec status <task>                   approved | designing | redo | blocked | proposed | none
+  loop-spec list [status]                   one line per design: "<task> <status> repo=... risk=..."
+  loop-spec path <task>                     the design package directory
+  loop-spec start <task> <repo> <risk>      claim a design (status must be none, redo or blocked)
+  loop-spec done <task>                     Designer: spec.md and design.md are written
+  loop-spec block <task> <reason>           Designer: cannot design without a person's answer
+  loop-spec feedback <task>                 append the owner's or Worker's pushback from stdin
+  loop-spec approve <task>                  owner only: copy spec.md to specs/<task>.md as ready
+  loop-spec log <task> <phase> <decision> <why> <evidence> <result>
+                                            append one row to decisions.tsv
+USAGE
+  exit 2
+}
+
+die() { echo "loop-spec: $*" >&2; exit 1; }
+is_one_of() { case " $2 " in *" $1 "*) return 0 ;; esac; return 1; }
+need_task() { case "${1:-}" in ""|*/*|.*) die "bad task key '${1:-}'" ;; esac; }
+dir_of() { echo "$DESIGNS/$1"; }
+marker_of() { echo "$DESIGNS/$1/.designing"; }
+
+marker_is_fresh() {
+  local marker
+  marker=$(marker_of "$1")
+  [ -d "$marker" ] && [ -z "$(find "$marker" -maxdepth 0 -mmin +"$STALE_MINUTES" 2>/dev/null)" ]
+}
+
+newest_of() {
+  local dir newest="" file
+  dir=$(dir_of "$1")
+  for file in spec.md feedback.md blocked.md; do
+    [ -f "$dir/$file" ] || continue
+    if [ -z "$newest" ] || [ "$dir/$file" -nt "$dir/$newest" ]; then newest="$file"; fi
+  done
+  echo "$newest"
+}
+
+status_of() {
+  if grep -qx 'status: ready' "$SPECS/$1.md" 2>/dev/null; then echo approved; return; fi
+  if marker_is_fresh "$1"; then echo designing; return; fi
+  case "$(newest_of "$1")" in
+    spec.md) echo proposed ;;
+    feedback.md) echo redo ;;
+    blocked.md) echo blocked ;;
+    *) echo none ;;
+  esac
+}
+
+release_marker() { rmdir "$(marker_of "$1")" 2>/dev/null; return 0; }
+
+cmd_status() {
+  [ $# -eq 1 ] || usage
+  need_task "$1"
+  status_of "$1"
+}
+
+cmd_path() {
+  [ $# -eq 1 ] || usage
+  need_task "$1"
+  dir_of "$1"
+}
+
+cmd_list() {
+  [ $# -le 1 ] || usage
+  local dir task status
+  for dir in "$DESIGNS"/*/; do
+    [ -d "$dir" ] || continue
+    task=$(basename "$dir")
+    status=$(status_of "$task")
+    [ $# -eq 0 ] || [ "$status" = "$1" ] || continue
+    echo "$task $status $(tr '\n' ' ' < "$dir/meta" 2>/dev/null | sed 's/ $//')"
+  done
+}
+
+cmd_start() {
+  [ $# -eq 3 ] || usage
+  need_task "$1"
+  local status marker
+  status=$(status_of "$1")
+  is_one_of "$status" "$STARTABLE" || die "$1 is $status; a design starts only from: $STARTABLE"
+  marker=$(marker_of "$1")
+  mkdir -p "$(dir_of "$1")"
+  [ -d "$marker" ] && rmdir "$marker"
+  mkdir "$marker" || die "could not claim $1"
+  printf 'repo=%s\nrisk=%s\n' "$2" "$3" > "$(dir_of "$1")/meta"
+}
+
+cmd_done() {
+  [ $# -eq 1 ] || usage
+  need_task "$1"
+  local dir
+  dir=$(dir_of "$1")
+  [ -s "$dir/design.md" ] || die "$dir/design.md is missing or empty"
+  [ -s "$dir/spec.md" ] || die "$dir/spec.md is missing or empty"
+  grep -qx 'status: proposed' "$dir/spec.md" || die "$dir/spec.md needs the line 'status: proposed'"
+  grep -q '^## Acceptance criteria' "$dir/spec.md" || die "$dir/spec.md needs a '## Acceptance criteria' section"
+  touch "$dir/spec.md"
+  release_marker "$1"
+}
+
+cmd_block() {
+  [ $# -ge 2 ] || usage
+  need_task "$1"
+  local task="$1"
+  shift
+  mkdir -p "$(dir_of "$task")"
+  printf '%s\n\n%s\n' "$(date '+%Y-%m-%d %H:%M')" "$*" > "$(dir_of "$task")/blocked.md"
+  release_marker "$task"
+}
+
+cmd_feedback() {
+  [ $# -eq 1 ] || usage
+  need_task "$1"
+  local dir text
+  dir=$(dir_of "$1")
+  [ -f "$dir/spec.md" ] || die "$1 has no design package to push back on"
+  text=$(cat)
+  [ -n "$text" ] || die "feedback is empty (pass it on stdin)"
+  printf '## %s\n\n%s\n\n' "$(date '+%Y-%m-%d %H:%M')" "$text" >> "$dir/feedback.md"
+  rm -f "$SPECS/$1.md"
+}
+
+cmd_approve() {
+  [ $# -eq 1 ] || usage
+  need_task "$1"
+  local status
+  status=$(status_of "$1")
+  [ "$status" = proposed ] || die "$1 is $status; only a proposed design can be approved"
+  mkdir -p "$SPECS"
+  sed "s/^status: proposed\$/status: ready\\
+approved: $(date +%F)/" "$(dir_of "$1")/spec.md" > "$SPECS/$1.md.tmp" && mv "$SPECS/$1.md.tmp" "$SPECS/$1.md"
+  grep -qx 'status: ready' "$SPECS/$1.md" || die "could not write $SPECS/$1.md"
+  echo "$SPECS/$1.md"
+}
+
+clean_cell() { printf '%s' "$1" | tr '\t\n' '  ' | sed "s/^[=+@-]/'&/"; }
+
+cmd_log() {
+  [ $# -eq 6 ] || usage
+  need_task "$1"
+  local file cell row
+  file="$(dir_of "$1")/decisions.tsv"
+  mkdir -p "$(dir_of "$1")"
+  [ -f "$file" ] || printf 'ts\tphase\tdecision\twhy\tevidence\tresult\n' > "$file"
+  row=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  shift
+  for cell in "$@"; do row="$row	$(clean_cell "$cell")"; done
+  printf '%s\n' "$row" >> "$file"
+}
+
+cmd="${1:-}"
+[ $# -gt 0 ] && shift
+case "$cmd" in
+  status|list|path|start|done|block|feedback|approve|log) "cmd_$cmd" "$@" ;;
+  *) usage ;;
+esac

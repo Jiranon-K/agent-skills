@@ -12,7 +12,12 @@ set -u
 
 LOOP_DIR="$HOME/loop"
 STATE="$LOOP_DIR/bin/loop-state"   # owns task state and worktree paths
+SPEC="$LOOP_DIR/bin/loop-spec"
+CONFIG="$LOOP_DIR/config.sh"
+[ -f "$CONFIG" ] || { echo "loop-run: missing $CONFIG (copy loop/config.example.sh and fill it in)" >&2; exit 1; }
+. "$CONFIG"
 MAX_WORKERS="${LOOP_MAX_WORKERS:-2}"
+MAX_DESIGNERS="${LOOP_MAX_DESIGNERS:-1}"
 # launchd has no user PATH; claude is a native install, glab/git/node come from Homebrew.
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -58,10 +63,12 @@ summarize() {
 ใช้รูปแบบ Dashboard นี้เป๊ะ ๆ (ภาษาไทย ไม่เกิน 16 บรรทัด ไม่ต้องมีหัวข้ออื่นเพิ่ม):
 
 ☀️ Loop <DD/MM> · <HH:MM>
-🚦 release web-app: <วัน DD/MM> · merge-back <✅ หรือ ⛔ รอ N commits>
+🚦 release $RELEASE_REPO: <วัน DD/MM> · merge-back <✅ หรือ ⛔ รอ N commits>
 
 ✅ ทำแล้ว    <สรุปสั้น เช่น route 2 ใบ · comment คำถาม 1 ใบ — ลิงก์ task ที่ถูกแก้ทุกใบ> หรือ —
 🔨 กำลังทำ   <task → Worker session ที่เปิด (risk) พร้อมลิงก์> หรือ —
+🧩 design    <task → Designer session ที่เปิดรอบนี้> (แสดงเฉพาะเมื่อมี)
+👀 รอรีวิว   <task ที่ design เป็น proposed → สั่ง /loop-design-review <task>> (แสดงเฉพาะเมื่อมี)
 ⛔ หยุด      <task: เหตุผลสั้น> (แสดงเฉพาะเมื่อมี)
 ❓ ต้อง grill  <task → ถามใคร เรื่องอะไร> (แสดงเฉพาะเมื่อมี ห้ามยกตัวคำถามมาซ้ำ)
 💤 ไม่ขยับ    <N ใบ>
@@ -73,7 +80,7 @@ summarize() {
 ถ้ารันพัง ให้บรรทัด ✅ เป็น \"รันไม่สำเร็จ: <สาเหตุสั้น>\" และ 👉 เป็นสิ่งที่ควรเช็ค
 
 รูปแบบลิงก์:
-- Workspace task: ใช้ลิงก์ที่อยู่ในตารางของ log เท่านั้น (รูปแบบ [APP-39](https://.../tasks/<id>))
+- Workspace task: ใช้ลิงก์ที่อยู่ในตารางของ log เท่านั้น (รูปแบบ $TASK_LINK_EXAMPLE)
 - MR: ใช้ URL ตามที่อยู่ใน log
 - ไฟล์บนเครื่อง: เขียนเป็น path เต็ม
 
@@ -105,15 +112,15 @@ DENY_COMMON=(
   "Bash(glab mr merge:*)" "Bash(glab mr approve:*)" "Bash(rm -rf:*)" "WebFetch"
 )
 WORKSPACE_READ=(
-  "mcp__workspace__list_spaces" "mcp__workspace__query_view"
-  "mcp__workspace__get_task" "mcp__workspace__list_comments"
+  "mcp__${WORKSPACE_MCP}__list_spaces" "mcp__${WORKSPACE_MCP}__query_view"
+  "mcp__${WORKSPACE_MCP}__get_task" "mcp__${WORKSPACE_MCP}__list_comments"
 )
 WORKSPACE_DENY=(
-  "mcp__workspace__create_task" "mcp__workspace__send_task_to_space"
-  "mcp__workspace__add_subtask" "mcp__workspace__add_dependency"
-  "mcp__workspace__create_space_doc" "mcp__workspace__update_space_doc"
-  "mcp__workspace__add_doc_image" "mcp__workspace__send_request"
-  "mcp__workspace__decide_request"
+  "mcp__${WORKSPACE_MCP}__create_task" "mcp__${WORKSPACE_MCP}__send_task_to_space"
+  "mcp__${WORKSPACE_MCP}__add_subtask" "mcp__${WORKSPACE_MCP}__add_dependency"
+  "mcp__${WORKSPACE_MCP}__create_space_doc" "mcp__${WORKSPACE_MCP}__update_space_doc"
+  "mcp__${WORKSPACE_MCP}__add_doc_image" "mcp__${WORKSPACE_MCP}__send_request"
+  "mcp__${WORKSPACE_MCP}__decide_request"
 )
 
 # Free the slots of tasks whose Worker is done; their branches stay.
@@ -129,18 +136,25 @@ WORKING=$("$STATE" list working | grep -c .)
 SLOTS=$(( MAX_WORKERS - WORKING ))
 [ "$SLOTS" -lt 0 ] && SLOTS=0
 [ "${TRIAGE_ONLY:-0}" = "1" ] && SLOTS=0
+DESIGNING=$("$SPEC" list designing | grep -c .)
+DESIGN_SLOTS=$(( MAX_DESIGNERS - DESIGNING ))
+[ "$DESIGN_SLOTS" -lt 0 ] && DESIGN_SLOTS=0
+[ "${TRIAGE_ONLY:-0}" = "1" ] && DESIGN_SLOTS=0
+DESIGNS=$("$SPEC" list | sed 's/^/- /')
+PSTACK=$(ls -dt "$HOME"/.claude/plugins/cache/*/pstack/*/ 2>/dev/null | head -n 1)
+[ -n "$PSTACK" ] && ln -sfn "${PSTACK%/}" "$LOOP_DIR/pstack"
 
 # web-app releases every Wednesday: staging → master, semantic-release commits
 # "chore(release): x.y.z" on master, then master is merged back into staging.
 # Until that merge-back lands, master has commits staging lacks; merging into
 # staging in that window breaks the version and CHANGELOG.
-WEBAPP_DIR="$HOME/Home/project-a/web-app"
-git -C "$WEBAPP_DIR" fetch -q origin master staging 2>/dev/null
-MERGE_BACK_PENDING=$(git -C "$WEBAPP_DIR" rev-list --count origin/staging..origin/master 2>/dev/null || echo "?")
+RELEASE_DIR=$("$STATE" repo "$RELEASE_REPO" 2>/dev/null | cut -d' ' -f1)
+git -C "$RELEASE_DIR" fetch -q origin master staging 2>/dev/null
+MERGE_BACK_PENDING=$(git -C "$RELEASE_DIR" rev-list --count origin/staging..origin/master 2>/dev/null || echo "?")
 NEXT_WED=$(date -v+"$(( (3 - $(date +%u) + 7) % 7 ))"d +%F)
-RELEASE_CTX="- web-app (project-a, space APP): release every Wednesday. Next release: $NEXT_WED. Cut-off for that release: the Monday before, 14:00.
-- web-app merge-back pending (master commits not in staging): $MERGE_BACK_PENDING (0 = clear; >0 = do not merge anything into staging)
-- project-b (space PB): no release cadence yet."
+RELEASE_CTX="- $RELEASE_REPO ($RELEASE_SPACE_NOTE): release every Wednesday. Next release: $NEXT_WED. Cut-off for that release: the Monday before, 14:00.
+- $RELEASE_REPO merge-back pending (master commits not in staging): $MERGE_BACK_PENDING (0 = clear; >0 = do not merge anything into staging)
+$OTHER_RELEASE_NOTE"
 
 spec_ready() { grep -qx 'status: ready' "$SPECS/$1.md" 2>/dev/null; }
 READY_SPECS=$(grep -lx 'status: ready' "$SPECS"/*.md 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\.md$//')
@@ -158,17 +172,22 @@ ${HANDLED:-(none)}
 Ready specs (only these may be picked):
 ${READY_SPECS:-(none)}
 
+Designer slots: $DESIGN_SLOTS
+
+Designs (do not send to design again unless the status is redo):
+${DESIGNS:-(none)}
+
 Previous report:
 $PREV" \
   --model opus --effort medium \
   --permission-mode default \
   --max-turns 80 \
   --allowedTools "Skill" "Read" "Grep" "Glob" "${WORKSPACE_READ[@]}" \
-    "mcp__workspace__update_task" "mcp__workspace__add_comment" \
+    "mcp__${WORKSPACE_MCP}__update_task" "mcp__${WORKSPACE_MCP}__add_comment" \
   --disallowedTools "Edit" "Write" "NotebookEdit" "Bash" "Agent" \
-    "mcp__workspace__transition_task" "mcp__workspace__start_work" \
-    "mcp__workspace__finish_work" "mcp__workspace__update_work_state" \
-    "mcp__workspace__add_task_link" "${WORKSPACE_DENY[@]}" "${DENY_COMMON[@]}" 2>&1)
+    "mcp__${WORKSPACE_MCP}__transition_task" "mcp__${WORKSPACE_MCP}__start_work" \
+    "mcp__${WORKSPACE_MCP}__finish_work" "mcp__${WORKSPACE_MCP}__update_work_state" \
+    "mcp__${WORKSPACE_MCP}__add_task_link" "${WORKSPACE_DENY[@]}" "${DENY_COMMON[@]}" 2>&1)
 STATUS=$?
 
 # The model sometimes prints a preamble line, so locate the first NOTIFY: line.
@@ -182,15 +201,17 @@ fi
 
 MSG=$(field "$OUT" NOTIFY)
 PICKS=$(printf '%s\n' "$OUT" | grep '^PICK:' | sed 's/^PICK: *//' | grep -v '^none$')
-REPORT=$(printf '%s\n' "$OUT" | tail -n +$((NLINE + 1)) | grep -v '^PICK:')
+DESIGN_PICKS=$(printf '%s\n' "$OUT" | grep '^DESIGN:' | sed 's/^DESIGN: *//' | grep -v '^none$')
+REPORT=$(printf '%s\n' "$OUT" | tail -n +$((NLINE + 1)) | grep -v -e '^PICK:' -e '^DESIGN:')
 printf '%s\n' "$REPORT" > "$LAST"
 log "## $NOW triage" "" "PICK: ${PICKS:-none}" "WORKERS: $WORKING working · $SLOTS free of $MAX_WORKERS" \
-  "RELEASE: web-app next $NEXT_WED · merge-back pending commits: $MERGE_BACK_PENDING" "$REPORT" ""
+  "DESIGN: ${DESIGN_PICKS:-none}" "DESIGNERS: $DESIGNING designing · $DESIGN_SLOTS free of $MAX_DESIGNERS" \
+  "RELEASE: $RELEASE_REPO next $NEXT_WED · merge-back pending commits: $MERGE_BACK_PENDING" "$REPORT" ""
 [ "$MSG" != "none" ] && { DID=1; notify "$MSG"; }
 
 # ---------- Workers ----------
 [ "${TRIAGE_ONLY:-0}" = "1" ] && exit 0
-[ -z "$PICKS" ] && exit 0
+[ -z "$PICKS" ] && [ -z "$DESIGN_PICKS" ] && exit 0
 
 WORKER_ALLOW=(
   "Skill" "Agent" "TodoWrite" "Read" "Edit" "Write" "Grep" "Glob"
@@ -206,55 +227,121 @@ WORKER_ALLOW=(
   "Bash(~/loop/bin/loop-next)" "Bash($HOME/loop/bin/loop-next)"
   "Bash(~/loop/bin/loop-state:*)" "Bash($HOME/loop/bin/loop-state:*)"
   "Bash(~/loop/bin/loop-heavy:*)" "Bash($HOME/loop/bin/loop-heavy:*)"
-  "${WORKSPACE_READ[@]}" "mcp__workspace__get_work_context"
-  "mcp__workspace__start_work" "mcp__workspace__update_work_state"
-  "mcp__workspace__finish_work" "mcp__workspace__transition_task"
-  "mcp__workspace__add_task_link" "mcp__workspace__add_comment"
-  "mcp__workspace__update_task"
+  "Bash(~/loop/bin/loop-ask:*)" "Bash($HOME/loop/bin/loop-ask:*)"
+  "Bash(~/loop/bin/loop-spec log:*)" "Bash($HOME/loop/bin/loop-spec log:*)"
+  "Bash(~/loop/bin/loop-spec path:*)" "Bash($HOME/loop/bin/loop-spec path:*)"
+  "Bash(~/loop/bin/loop-spec feedback:*)" "Bash($HOME/loop/bin/loop-spec feedback:*)"
+  "Edit(~/loop/designs/**)" "Write(~/loop/designs/**)"
+  "${WORKSPACE_READ[@]}" "mcp__${WORKSPACE_MCP}__get_work_context"
+  "mcp__${WORKSPACE_MCP}__start_work" "mcp__${WORKSPACE_MCP}__update_work_state"
+  "mcp__${WORKSPACE_MCP}__finish_work" "mcp__${WORKSPACE_MCP}__transition_task"
+  "mcp__${WORKSPACE_MCP}__add_task_link" "mcp__${WORKSPACE_MCP}__add_comment"
+  "mcp__${WORKSPACE_MCP}__update_task"
 )
 WORKER_DENY=(
   "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}"
   "Bash(git push:*)" "Bash(git -C:*)" "Bash(glab api -X:*)" "Bash(glab api --method:*)"
+  "Bash(~/loop/bin/loop-spec approve:*)" "Bash($HOME/loop/bin/loop-spec approve:*)"
+)
+DESIGNER_ALLOW=(
+  "Skill" "Agent" "TodoWrite" "Read" "Grep" "Glob"
+  "Edit(~/loop/designs/**)" "Write(~/loop/designs/**)"
+  "Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)" "Bash(git fetch:*)"
+  "Bash(git rev-parse:*)" "Bash(git ls-files:*)" "Bash(git grep:*)"
+  "Bash(ls:*)" "Bash(cat:*)" "Bash(head:*)" "Bash(tail:*)" "Bash(grep:*)" "Bash(find:*)" "Bash(wc:*)"
+  "Bash(~/loop/bin/loop-next)" "Bash($HOME/loop/bin/loop-next)"
+  "Bash(~/loop/bin/loop-ask:*)" "Bash($HOME/loop/bin/loop-ask:*)"
+  "Bash(~/loop/bin/loop-spec done:*)" "Bash($HOME/loop/bin/loop-spec done:*)"
+  "Bash(~/loop/bin/loop-spec block:*)" "Bash($HOME/loop/bin/loop-spec block:*)"
+  "Bash(~/loop/bin/loop-spec status:*)" "Bash($HOME/loop/bin/loop-spec status:*)"
+  "Bash(~/loop/bin/loop-spec path:*)" "Bash($HOME/loop/bin/loop-spec path:*)"
+  "Bash(~/loop/bin/loop-spec log:*)" "Bash($HOME/loop/bin/loop-spec log:*)"
+  "${WORKSPACE_READ[@]}" "mcp__${WORKSPACE_MCP}__get_work_context"
+  "mcp__${WORKSPACE_MCP}__add_comment" "mcp__${WORKSPACE_MCP}__update_task"
+)
+DESIGNER_DENY=(
+  "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}" "NotebookEdit"
+  "Bash(git push:*)" "Bash(git commit:*)" "Bash(git add:*)" "Bash(git checkout:*)" "Bash(git switch:*)"
+  "Bash(~/loop/bin/loop-spec approve:*)" "Bash($HOME/loop/bin/loop-spec approve:*)"
+  "Bash(~/loop/bin/loop-spec feedback:*)" "Bash($HOME/loop/bin/loop-spec feedback:*)"
+  "mcp__${WORKSPACE_MCP}__transition_task" "mcp__${WORKSPACE_MCP}__start_work"
+  "mcp__${WORKSPACE_MCP}__finish_work" "mcp__${WORKSPACE_MCP}__update_work_state"
+  "mcp__${WORKSPACE_MCP}__add_task_link"
 )
 
-# Opens a visible Worker session: a herdr space when the window is up, else a background herdr-core terminal.
+# Opens a visible session: a herdr space when the window is up, else a background herdr-core terminal.
+# The caller sets SESSION_ALLOW and SESSION_DENY first.
 open_session() {
-  local task="$1" repo="$2" risk="$3" wt="$4" json
-  json=$(python3 -I - "$task" "$repo" "$risk" "$wt" <<'PY' "${WORKER_ALLOW[@]}" -- "${WORKER_DENY[@]}"
+  local name="$1" folder="$2" tab="$3" mode="$4" command="$5" json
+  json=$(python3 -I - "$name" "$folder" "$tab" "$mode" "$command" <<'PY' "${SESSION_ALLOW[@]}" -- "${SESSION_DENY[@]}"
 import json, sys
-task, repo, risk, wt = sys.argv[1:5]
-rest = sys.argv[5:]
+name, folder, tab, mode, command = sys.argv[1:6]
+rest = sys.argv[6:]
 cut = rest.index("--")
 allow, deny = rest[:cut], rest[cut + 1:]
-argv = ["claude", "--model", "opus", "--effort", "medium", "--permission-mode", "acceptEdits",
-        "--allowedTools", *allow, "--disallowedTools", *deny, "--", f"/loop-work {task} {repo} {risk}"]
-print(json.dumps({"name": f"loop {task}", "folder": wt, "tab": "worker", "argv": argv}))
+argv = ["claude", "--model", "opus", "--effort", "medium", "--permission-mode", mode,
+        "--allowedTools", *allow, "--disallowedTools", *deny, "--", command]
+print(json.dumps({"name": name, "folder": folder, "tab": tab, "argv": argv}))
 PY
 )
   if herdr-app status >/dev/null 2>&1 && herdr-app do space.new "$json" >/dev/null 2>&1; then
     sleep 3
-    if "$HOME/.local/bin/herdr-core" ls 2>/dev/null | grep -q "loop $task"; then
-      echo "herdr space 'loop $task'"
+    if "$HOME/.local/bin/herdr-core" ls 2>/dev/null | grep -q "$name"; then
+      echo "herdr space '$name'"
     else
-      echo "herdr space 'loop $task' (not yet listed by herdr-core ls: check the app)"
+      echo "herdr space '$name' (not yet listed by herdr-core ls: check the app)"
     fi
     return 0
   fi
   local argv=()
   while IFS= read -r line; do argv+=("$line"); done < <(printf '%s' "$json" | python3 -I -c 'import json,sys; print("\n".join(json.load(sys.stdin)["argv"]))')
-  hc run --bg --name "loop-$(echo "$task" | tr '[:upper:]' '[:lower:]')" --cwd "$wt" --no-parent -- "${argv[@]}" >/dev/null 2>&1 \
-    && { echo "herdr-core terminal loop-$task (open the herdr app to see it)"; return 0; }
+  hc run --bg --name "$(echo "$name" | tr '[:upper:] ' '[:lower:]-')" --cwd "$folder" --no-parent -- "${argv[@]}" >/dev/null 2>&1 \
+    && { echo "herdr-core terminal $name (open the herdr app to see it)"; return 0; }
   return 1
 }
 
+memory_is_low() {
+  local free
+  free=$(memory_pressure -Q 2>/dev/null | grep -oE '[0-9]+%' | tr -d '%')
+  [ -n "$free" ] && [ "$free" -lt 30 ]
+}
+
+start_designer() {
+  local task="$1" repo="$2" risk="${3:-?}" repo_dir base where
+  if ! read -r repo_dir base < <("$STATE" repo "$repo" 2>/dev/null) || [ -z "$base" ]; then
+    log "## $NOW designer skipped — unknown repo '$repo' for $task (add it to $LOOP_DIR/repos)"
+    return
+  fi
+  if memory_is_low; then
+    log "## $NOW designer skipped — $task: free memory under 30%"
+    return
+  fi
+  if ! "$SPEC" start "$task" "$repo" "$risk" 2>/dev/null; then
+    log "## $NOW designer skipped — $task: design is $("$SPEC" status "$task")"
+    return
+  fi
+  git -C "$repo_dir" fetch -q origin "$base" 2>/dev/null
+  DID=1
+  SESSION_ALLOW=("${DESIGNER_ALLOW[@]}")
+  SESSION_DENY=("${DESIGNER_DENY[@]}")
+  if where=$(open_session "design $task" "$repo_dir" "designer" "default" "/loop-design $task $repo $risk"); then
+    log "## $NOW designer started $task ($repo, risk:$risk) — $where" "package: $("$SPEC" path "$task")" ""
+    notify "Designer เริ่ม $task ($repo, risk:$risk)"
+  else
+    "$SPEC" block "$task" "could not open a herdr session"
+    log "## $NOW designer FAILED — $task: could not open a herdr session (herdr-app and hc both failed)" ""
+    notify "เปิด Designer session ไม่ได้ ($task)"
+  fi
+}
+
 start_worker() {
-  local task="$1" repo="$2" risk="${3:-?}" repo_dir base wt branch free where
+  local task="$1" repo="$2" risk="${3:-?}" repo_dir base wt branch where
   if ! read -r repo_dir base < <("$STATE" repo "$repo" 2>/dev/null) || [ -z "$base" ]; then
     log "## $NOW worker skipped — unknown repo '$repo' for $task (add it to $LOOP_DIR/repos)"
     return
   fi
-  if [ "$repo" = "web-app" ] && [ "$MERGE_BACK_PENDING" != "0" ]; then
-    log "## $NOW worker skipped — $task: web-app merge-back master → staging pending ($MERGE_BACK_PENDING commits)"
+  if [ "$repo" = "$RELEASE_REPO" ] && [ "$MERGE_BACK_PENDING" != "0" ]; then
+    log "## $NOW worker skipped — $task: $RELEASE_REPO merge-back master → staging pending ($MERGE_BACK_PENDING commits)"
     return
   fi
   if "$STATE" get "$task" >/dev/null; then
@@ -262,9 +349,8 @@ start_worker() {
     return
   fi
   # 8 GB machine: test suites and builds need headroom.
-  free=$(memory_pressure -Q 2>/dev/null | grep -oE '[0-9]+%' | tr -d '%')
-  if [ -n "$free" ] && [ "$free" -lt 30 ]; then
-    log "## $NOW worker skipped — $task: free memory ${free}% < 30%"
+  if memory_is_low; then
+    log "## $NOW worker skipped — $task: free memory under 30%"
     return
   fi
 
@@ -284,7 +370,9 @@ start_worker() {
   "$HOME/.claude/hooks/wt-setup" "$wt" >/dev/null 2>&1 || log "## $NOW worker: wt-setup failed for $wt (local files not linked)"
   "$STATE" set "$task" working repo="$repo" branch="$branch" wt="$wt"
   DID=1
-  if where=$(open_session "$task" "$repo" "$risk" "$wt"); then
+  SESSION_ALLOW=("${WORKER_ALLOW[@]}")
+  SESSION_DENY=("${WORKER_DENY[@]}")
+  if where=$(open_session "loop $task" "$wt" "worker" "acceptEdits" "/loop-work $task $repo $risk"); then
     log "## $NOW worker started $task ($repo, risk:$risk) — $where" "worktree: $wt" ""
     notify "Worker เริ่ม $task ($repo, risk:$risk)"
   else
@@ -302,4 +390,12 @@ while read -r TASK REPO RISK; do
   start_worker "$TASK" "$REPO" "$RISK"
   STARTED=$((STARTED + 1))
 done <<< "$PICKS"
+
+DESIGNS_STARTED=0
+while read -r TASK REPO RISK; do
+  [ -z "$TASK" ] && continue
+  [ "$DESIGNS_STARTED" -ge "$DESIGN_SLOTS" ] && { log "## $NOW designer skipped — $TASK: no free Designer slot"; continue; }
+  start_designer "$TASK" "$REPO" "$RISK"
+  DESIGNS_STARTED=$((DESIGNS_STARTED + 1))
+done <<< "$DESIGN_PICKS"
 exit 0

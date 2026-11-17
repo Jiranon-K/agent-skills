@@ -1,0 +1,5 @@
+WORKSPACE_MCP="workspace"
+RELEASE_REPO="web-app"
+RELEASE_SPACE_NOTE="project-a, space APP"
+OTHER_RELEASE_NOTE="- project-b (space PB): no release cadence yet."
+TASK_LINK_EXAMPLE="[APP-39](https://.../tasks/<id>)"

@@ -86,7 +86,8 @@ for dir in scheduled/*/; do
   copy_template "${dir%/}" "$HOME/.claude/scheduled-tasks/$(basename "$dir")"
 done
 
-copy_template loop/bin/loop-run.sh "$HOME/loop/bin/loop-run.sh"
+link loop/bin/loop-run.sh "$HOME/loop/bin/loop-run.sh"
+copy_template loop/config.example.sh "$HOME/loop/config.sh"
 copy_template loop/repos.example "$HOME/loop/repos"
 copy_template loop/workspace.example.md "$HOME/loop/workspace.md"
 # loop-state holds no placeholders and is the protocol the runner and loop skills share: keep it current.
@@ -97,6 +98,8 @@ link loop/bin/loop-heavy "$HOME/loop/bin/loop-heavy"
 link loop/bin/loop-push "$HOME/loop/bin/loop-push"
 # loop-next: a Worker starts the next run when its task ends.
 link loop/bin/loop-next "$HOME/loop/bin/loop-next"
+link loop/bin/loop-spec "$HOME/loop/bin/loop-spec"
+link loop/bin/loop-ask "$HOME/loop/bin/loop-ask"
 
 # SessionStart hook and loop-run.sh call it; it reads each repo's own .worktreelinks.
 link scripts/wt-setup "$HOME/.claude/hooks/wt-setup"

@@ -1,0 +1,78 @@
+#!/bin/bash
+set -u
+
+MAX_DIFF_BYTES="${LOOP_ASK_MAX_DIFF_BYTES:-200000}"
+GPT_MODEL="${LOOP_ASK_GPT:-gpt-6-luna}"
+GPT_EFFORT="${LOOP_ASK_GPT_EFFORT:-high}"
+GEMINI_MODEL="${LOOP_ASK_GEMINI:-gemini-3.8-flash-high}"
+GEMINI_TIMEOUT="${LOOP_ASK_TIMEOUT:-600s}"
+
+usage() {
+  cat >&2 <<'USAGE'
+loop-ask puts one read-only question to a model from another vendor.
+The model reads files under the current directory and edits nothing.
+
+  loop-ask <gpt|gemini> <prompt file> [<diff base ref>]
+
+  gpt     GPT-6-Luna (high) through codex, in its read-only sandbox: it may also run read-only commands
+  gemini  Gemini 3.8 Flash (high) through agy: file reads only, no command
+
+With a base ref, the output of `git diff <base ref>...HEAD` is appended to the prompt.
+USAGE
+  exit 2
+}
+
+die() { echo "loop-ask: $*" >&2; exit 1; }
+
+ask_gpt() {
+  local out status
+  command -v codex >/dev/null 2>&1 || die "codex is not installed"
+  out=$(mktemp)
+  codex exec -m "$GPT_MODEL" -c "model_reasoning_effort=$GPT_EFFORT" -s read-only --ephemeral \
+    --skip-git-repo-check --color never -o "$out" "$1" < /dev/null > "$out.log" 2>&1
+  status=$?
+  answer=$(cat "$out" 2>/dev/null)
+  [ "$status" -eq 0 ] && [ -n "$answer" ] || tail -n 5 "$out.log" >&2
+  rm -f "$out" "$out.log"
+  model="$GPT_MODEL $GPT_EFFORT"
+  return "$status"
+}
+
+ask_gemini() {
+  command -v agy >/dev/null 2>&1 || die "agy is not installed"
+  answer=$(agy -p "Use only your file-read tools and run no shell command. $1" --model "$GEMINI_MODEL" --mode plan --print-timeout "$GEMINI_TIMEOUT" < /dev/null 2>&1)
+  local status=$?
+  case "$answer" in *"no output produced"*) status=1 ;; esac
+  [ "$status" -eq 0 ] || printf '%s\n' "$answer" | tail -n 5 >&2
+  model="$GEMINI_MODEL"
+  return "$status"
+}
+
+[ $# -ge 2 ] && [ $# -le 3 ] || usage
+case "$1" in gpt|gemini) ;; *) usage ;; esac
+[ -f "$2" ] || die "no prompt file $2"
+
+prompt="Rules for this answer: change nothing, run nothing that writes, and never open .env*, .npmrc or any secret file.
+
+$(cat "$2")"
+
+if [ $# -eq 3 ]; then
+  diff=$(git diff "$3...HEAD" -- . ':(exclude)*.lock' ':(exclude)package-lock.json') || die "git diff $3...HEAD failed"
+  if [ "${#diff}" -gt "$MAX_DIFF_BYTES" ]; then
+    diff="${diff:0:$MAX_DIFF_BYTES}
+[diff cut at $MAX_DIFF_BYTES bytes: read the changed files for the rest]"
+  fi
+  prompt="$prompt
+
+The diff under review (git diff $3...HEAD):
+
+$diff"
+fi
+
+answer="" model=""
+"ask_$1" "$prompt"
+status=$?
+if [ "$status" -ne 0 ] || [ -z "$answer" ]; then
+  die "$model gave no answer (exit $status)"
+fi
+printf 'MODEL: %s\n%s\n' "$model" "$answer"

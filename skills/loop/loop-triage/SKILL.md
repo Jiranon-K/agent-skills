@@ -52,7 +52,7 @@ A loop comment is any comment whose first line starts with `🤖 [loop-status]`.
   🤖 [loop-status] ❓ ต้องการข้อมูลก่อนเริ่ม · [@<assignee name>](mention:member/<assignee id>)
   **ตรวจแล้ว** — <ข้อเท็จจริงที่ยืนยันแล้ว ข้อละ 1 บรรทัด พร้อม path หรือ task key> หรือ "ไม่มี"
   **คำถาม**
-  1. <คำถามข้อละ 1 บรรทัด> → ถาม <ชื่อเล่นจากไฟล์ทีม ไม่ mention>
+  1. <คำถามข้อละ 1 บรรทัด>[ → ถาม <ชื่อเล่น ไม่ mention> (<หลักฐาน>)]
   2. ...
   ตอบใน comment นี้ แล้ว Loop จะ triage ใหม่รอบหน้า
   ```
@@ -72,7 +72,7 @@ A confirmed point is a fact, not a question: put it on the comment's `ตรว�
 
 ### Who to ask
 
-The team files `~/.claude/teams/*.md` (written by `team-context`) list each team's people, their roles and what each is asked about. Use the team whose frontmatter `repos:` matches the task's repo checkout; with no repo, the team named by the space's product in `workspace.md`. For each question, name the one person whose role or topics cover it, by the nickname written in the file. Never name someone who is not in the file; with no match, write `เจ้าของ card`. Use the same names in the report's "ต้อง grill" table.
+The team files `~/.claude/teams/*.md` (written by `team-context`) list each team's people, their roles and what each is asked about. Use the team whose frontmatter `repos:` matches the task's repo checkout; with no repo, the team named by the space's product in `workspace.md`. Name a person on a question only with evidence that ties that person to the exact thing asked: they wrote the line in the card or a comment that the question is about, they are the assignee of the linked or blocking task it depends on, or the team file lists that specific topic under their name. A role alone ("backend", "PO") or a guess is not evidence. Write the nickname from the team file, never a mention, followed by the evidence in brackets, for example `→ ถาม พี่เอ (comment 12 พ.ย.)`. With no such evidence, leave the `→ ถาม` part off: the question then stands for the card's assignee to route. Never name someone who is not in the team file. Use the same names in the report's "ต้อง grill" table, and `เจ้าของ card` where the comment names nobody.
 
 ## Pick
 

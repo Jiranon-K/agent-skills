@@ -54,6 +54,7 @@ for line in open(sys.argv[1]):
     if space["name"] == sys.argv[2]:
         argv = space["argv"]
         print({"command": argv[-1], "mode": argv[argv.index("--permission-mode") + 1], "folder": space["folder"],
+               "adddir": argv[argv.index("--add-dir") + 1],
                "deny": " ".join(argv[argv.index("--disallowedTools") + 1:argv.index("--")]),
                "allow": " ".join(argv[argv.index("--allowedTools") + 1:argv.index("--disallowedTools")])}[sys.argv[3]])' \
     "$FAKE_HOME/spaces.json" "$1" "$2"
@@ -79,13 +80,14 @@ eq "pstack link points at the plugin" "$(readlink "$LOOP/pstack")" "$FAKE_HOME/.
 
 eq "worker is started for the ready spec" "$(state get EX-2 status)" "working"
 eq "worker session runs loop-work" "$(session_field "loop EX-2" command)" "/loop-work EX-2 web-app medium"
-eq "worker session accepts edits" "$(session_field "loop EX-2" mode)" "acceptEdits"
+eq "worker session denies instead of asking" "$(session_field "loop EX-2" mode)" "dontAsk"
 eq "worker session opens in its slot" "$(session_field "loop EX-2" folder)" "$TMP/web-app/.claude/worktrees/loop-1"
 case "$(session_field "loop EX-2" deny)" in *"loop-spec approve"*) ok ;; *) fail "worker may not approve a spec" ;; esac
 
 eq "designer claims the design" "$(spec status EX-1)" "designing"
 eq "designer session runs loop-design" "$(session_field "design EX-1" command)" "/loop-design EX-1 web-app low"
-eq "designer session asks before any edit outside its package" "$(session_field "design EX-1" mode)" "default"
+eq "designer session denies instead of asking" "$(session_field "design EX-1" mode)" "dontAsk"
+eq "designer session may read the loop folder from the shell" "$(session_field "design EX-1" adddir)" "$LOOP"
 eq "designer session opens in the main checkout" "$(session_field "design EX-1" folder)" "$TMP/web-app"
 case "$(session_field "design EX-1" deny)" in *"loop-spec approve"*"git commit"*|*"git commit"*"loop-spec approve"*) ok ;; *) fail "designer may not approve or commit" ;; esac
 case "$(session_field "design EX-1" allow)" in *"Write(~/loop/designs/**)"*) ok ;; *) fail "designer writes only its package" ;; esac

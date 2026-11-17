@@ -256,7 +256,7 @@ DESIGNER_ALLOW=(
   "Skill" "Agent" "TodoWrite" "Read" "Grep" "Glob"
   "Edit(~/loop/designs/**)" "Write(~/loop/designs/**)"
   "Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)" "Bash(git fetch:*)"
-  "Bash(git rev-parse:*)" "Bash(git ls-files:*)" "Bash(git grep:*)"
+  "Bash(git rev-parse:*)" "Bash(git ls-files:*)" "Bash(git ls-tree:*)" "Bash(git grep:*)"
   "Bash(ls:*)" "Bash(cat:*)" "Bash(head:*)" "Bash(tail:*)" "Bash(grep:*)" "Bash(find:*)" "Bash(wc:*)"
   "Bash(~/loop/bin/loop-next)" "Bash($HOME/loop/bin/loop-next)"
   "Bash(~/loop/bin/loop-ask:*)" "Bash($HOME/loop/bin/loop-ask:*)"
@@ -267,6 +267,9 @@ DESIGNER_ALLOW=(
   "Bash(~/loop/bin/loop-spec log:*)" "Bash($HOME/loop/bin/loop-spec log:*)"
   "${WORKSPACE_READ[@]}" "mcp__${WORKSPACE_MCP}__get_work_context"
   "mcp__${WORKSPACE_MCP}__add_comment" "mcp__${WORKSPACE_MCP}__update_task"
+  "mcp__claude_ai_gitlab__get_repository_file" "mcp__claude_ai_gitlab__list_repository_tree"
+  "mcp__claude_ai_gitlab__get_merge_request" "mcp__claude_ai_gitlab__list_merge_requests"
+  "mcp__claude_ai_gitlab__get_commit" "mcp__claude_ai_gitlab__list_commits" "mcp__claude_ai_gitlab__search"
 )
 DESIGNER_DENY=(
   "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}" "NotebookEdit"
@@ -282,13 +285,14 @@ DESIGNER_DENY=(
 # The caller sets SESSION_ALLOW and SESSION_DENY first.
 open_session() {
   local name="$1" folder="$2" tab="$3" mode="$4" command="$5" json
-  json=$(python3 -I - "$name" "$folder" "$tab" "$mode" "$command" <<'PY' "${SESSION_ALLOW[@]}" -- "${SESSION_DENY[@]}"
-import json, sys
+  json=$(LOOP_DIR="$LOOP_DIR" python3 -I - "$name" "$folder" "$tab" "$mode" "$command" <<'PY' "${SESSION_ALLOW[@]}" -- "${SESSION_DENY[@]}"
+import json, os, sys
 name, folder, tab, mode, command = sys.argv[1:6]
 rest = sys.argv[6:]
 cut = rest.index("--")
 allow, deny = rest[:cut], rest[cut + 1:]
 argv = ["claude", "--model", "opus", "--effort", "medium", "--permission-mode", mode,
+        "--add-dir", os.environ["LOOP_DIR"],
         "--allowedTools", *allow, "--disallowedTools", *deny, "--", command]
 print(json.dumps({"name": name, "folder": folder, "tab": tab, "argv": argv}))
 PY
@@ -333,7 +337,7 @@ start_designer() {
   DID=1
   SESSION_ALLOW=("${DESIGNER_ALLOW[@]}")
   SESSION_DENY=("${DESIGNER_DENY[@]}")
-  if where=$(open_session "design $task" "$repo_dir" "designer" "default" "/loop-design $task $repo $risk"); then
+  if where=$(open_session "design $task" "$repo_dir" "designer" "dontAsk" "/loop-design $task $repo $risk"); then
     log "## $NOW designer started $task ($repo, risk:$risk) — $where" "package: $("$SPEC" path "$task")" ""
     notify "Designer เริ่ม $task ($repo, risk:$risk)"
   else
@@ -381,7 +385,7 @@ start_worker() {
   DID=1
   SESSION_ALLOW=("${WORKER_ALLOW[@]}")
   SESSION_DENY=("${WORKER_DENY[@]}")
-  if where=$(open_session "loop $task" "$wt" "worker" "acceptEdits" "/loop-work $task $repo $risk"); then
+  if where=$(open_session "loop $task" "$wt" "worker" "dontAsk" "/loop-work $task $repo $risk"); then
     log "## $NOW worker started $task ($repo, risk:$risk) — $where" "worktree: $wt" ""
     notify "Worker เริ่ม $task ($repo, risk:$risk)"
   else

@@ -20,6 +20,7 @@ TODAY=$(date +%F)
 NOW=$(date +%H:%M)
 LOG="$LOOP_DIR/logs/$TODAY.md"
 LAST="$LOOP_DIR/state/last-triage.md"
+SPECS="$LOOP_DIR/specs"
 LOCK="$LOOP_DIR/state/run.lock"
 mkdir -p "$LOOP_DIR/logs" "$LOOP_DIR/state"
 
@@ -141,6 +142,9 @@ RELEASE_CTX="- web-app (project-a, space APP): release every Wednesday. Next rel
 - web-app merge-back pending (master commits not in staging): $MERGE_BACK_PENDING (0 = clear; >0 = do not merge anything into staging)
 - project-b (space PB): no release cadence yet."
 
+spec_ready() { grep -qx 'status: ready' "$SPECS/$1.md" 2>/dev/null; }
+READY_SPECS=$(grep -lx 'status: ready' "$SPECS"/*.md 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\.md$//')
+
 OUT=$(cd "$LOOP_DIR" && claude -p "/loop-triage
 
 Worker slots: $SLOTS
@@ -150,6 +154,9 @@ $RELEASE_CTX
 
 Handled tickets (do not pick):
 ${HANDLED:-(none)}
+
+Ready specs (only these may be picked):
+${READY_SPECS:-(none)}
 
 Previous report:
 $PREV" \
@@ -290,6 +297,7 @@ start_worker() {
 STARTED=0
 while read -r TASK REPO RISK; do
   [ -z "$TASK" ] && continue
+  spec_ready "$TASK" || { log "## $NOW worker skipped — $TASK: no ready spec in $SPECS"; continue; }
   [ "$STARTED" -ge "$SLOTS" ] && { log "## $NOW worker skipped — $TASK: no free Worker slot"; continue; }
   start_worker "$TASK" "$REPO" "$RISK"
   STARTED=$((STARTED + 1))

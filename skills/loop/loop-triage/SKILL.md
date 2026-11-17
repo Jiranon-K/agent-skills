@@ -60,13 +60,15 @@ A loop comment is any comment whose first line starts with `🤖 [loop-status]`.
 
 ## Pick
 
-The prompt gives `Worker slots: N`. Pick up to N tasks (0 → none) that have `route=agent`, are in their space's "Pick from" status, are not in the "Handled tickets" list, and whose repo is in `~/loop/repos`. Order:
+The prompt gives `Worker slots: N`. Pick up to N tasks (0 → none) that have `route=agent`, are in their space's "Pick from" status, are not in the "Handled tickets" list, whose repo is in `~/loop/repos`, and whose key is in the prompt's "Ready specs" list. Order:
 1. In-sprint tasks first. Out-of-sprint tasks fill only the slots left after every pickable in-sprint task is picked.
 2. Within each group: the nearest due date, then the nearest `release:` label.
 3. Then priority: URGENT > HIGH > MEDIUM > LOW.
 4. Then oldest `updatedAt`.
 
 Never pick a `web-app` task while the release context says merge-back is pending (>0). Never pick two tasks for the same repo in one run.
+
+A **ready spec** is `~/loop/specs/<task key>.md` with the line `status: ready`, written only after the owner grilled the task and confirmed it. Never write or edit a spec. A `route=agent` task without one is not picked: list it under "ต้อง grill" with `ถามใคร` = เจ้าของ card and `เรื่อง` = `ยังไม่มี spec ที่ grill แล้ว`, and post no comment for it.
 
 ## Output format (exact)
 

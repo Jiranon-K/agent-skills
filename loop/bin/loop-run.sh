@@ -163,7 +163,7 @@ $PREV" \
   --model opus --effort medium \
   --permission-mode default \
   --max-turns 80 \
-  --allowedTools "Skill" "Read" "${WORKSPACE_READ[@]}" \
+  --allowedTools "Skill" "Read" "Grep" "Glob" "${WORKSPACE_READ[@]}" \
     "mcp__workspace__update_task" "mcp__workspace__add_comment" \
   --disallowedTools "Edit" "Write" "NotebookEdit" "Bash" "Agent" \
     "mcp__workspace__transition_task" "mcp__workspace__start_work" \

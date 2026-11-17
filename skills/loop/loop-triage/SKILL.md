@@ -47,16 +47,30 @@ Route:
 
 A loop comment is any comment whose first line starts with `🤖 [loop-status]`. Comments cannot be edited, so a new one is posted only when something happens.
 
-- **Question comment**: only when routing `needs:human`, and only if the same question is not already asked in an unanswered earlier comment. Thai, short. Mention only the task's assignee, never anyone else:
+- **Question comment**: only when routing `needs:human`, only after "Verify before asking" and "Who to ask" below, and only if the same question is not already asked in an unanswered earlier comment. Thai, short. Mention only the task's assignee, never anyone else:
   ```
   🤖 [loop-status] ❓ ต้องการข้อมูลก่อนเริ่ม · [@<assignee name>](mention:member/<assignee id>)
-  1. <คำถามข้อละ 1 บรรทัด>
+  **ตรวจแล้ว** — <ข้อเท็จจริงที่ยืนยันแล้ว ข้อละ 1 บรรทัด พร้อม path หรือ task key> หรือ "ไม่มี"
+  **คำถาม**
+  1. <คำถามข้อละ 1 บรรทัด> → ถาม <ชื่อเล่นจากไฟล์ทีม ไม่ mention>
   2. ...
-  ถ้ารู้ว่าต้องถามใคร: ถาม <ชื่อเล่น ไม่ mention> เรื่อง <อะไร>
   ตอบใน comment นี้ แล้ว Loop จะ triage ใหม่รอบหน้า
   ```
 - **An answer arrived** = a comment that is not a loop comment and is newer than the newest loop comment on a `needs:human` task. Re-classify with it. If now clear: remove `needs:human`, set `route=agent`, post `🤖 [loop-status] ✅ ได้คำตอบแล้ว → ส่งให้ Agent ทำ (risk:<x>)`. If still unclear: post one follow-up question comment.
 - Otherwise post nothing.
+
+### Verify before asking
+
+Check every question against what you can read. A question goes in the comment only when none of these answers it:
+- The task: `get_task` description, acceptance criteria and links; `get_task` on each linked or blocking task for its status; `list_comments`.
+- The code: the repo's main checkout from `~/loop/repos`. Use `Glob`, `Grep` and `Read` to confirm that what the card names exists (page, component, endpoint, field, flag) and how it behaves now. Read only. Never `.env*` or `.npmrc`.
+- `~/Home/docs/repo-map.md` for which repo owns the change.
+
+A confirmed point is a fact, not a question: put it on the comment's `ตรวจแล้ว` line with its file path or task key. Ask only about what is missing, or where the card and the code disagree (state both sides).
+
+### Who to ask
+
+The team files `~/.claude/teams/*.md` (written by `team-context`) list each team's people, their roles and what each is asked about. Use the team whose frontmatter `repos:` matches the task's repo checkout; with no repo, the team named by the space's product in `workspace.md`. For each question, name the one person whose role or topics cover it, by the nickname written in the file. Never name someone who is not in the file; with no match, write `เจ้าของ card`. Use the same names in the report's "ต้อง grill" table.
 
 ## Pick
 

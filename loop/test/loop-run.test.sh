@@ -18,7 +18,7 @@ FAKE_HOME="$TMP/home"
 BIN="$FAKE_HOME/.local/bin"
 LOOP="$FAKE_HOME/loop"
 mkdir -p "$BIN" "$LOOP/bin" "$LOOP/specs" "$FAKE_HOME/.claude/plugins/cache/market/pstack/1.0.0/skills"
-for script in loop-run.sh loop-state loop-spec; do ln -s "$REPO/loop/bin/$script" "$LOOP/bin/$script"; done
+for script in loop-run.sh loop-state loop-spec loop-clean; do ln -s "$REPO/loop/bin/$script" "$LOOP/bin/$script"; done
 cp "$REPO/loop/config.example.sh" "$LOOP/config.sh"
 
 git init -q --bare "$TMP/origin.git"
@@ -40,7 +40,7 @@ fake herdr-app 'case "$1" in status) exit 0 ;; do) printf "%s\n" "$3" >> "$HOME/
 fake claude 'case "$*" in
   *"/loop-triage"*)
     printf "%s\n" "$*" > "$HOME/triage-prompt.txt"
-    printf "NOTIFY: picked\nPICK: EX-2 web-app medium\nDESIGN: EX-1 web-app low\n### report\n" ;;
+    printf "NOTIFY: picked\nPICK: EX-2 web-app medium\nDESIGN: EX-1 web-app low\nCLOSED: EX-9\n### report\n" ;;
   *) echo "summary" ;;
 esac'
 
@@ -59,8 +59,18 @@ for line in open(sys.argv[1]):
     "$FAKE_HOME/spaces.json" "$1" "$2"
 }
 
+printf -- '---\ntask: EX-9\nstatus: ready\n---\n' > "$LOOP/specs/EX-9.md"
+printf -- '---\ntask: EX-8\nstatus: ready\n---\n' > "$LOOP/specs/EX-8.md"
+state set EX-8 merged repo=web-app
+
 run_loop
 LOG=$(ls "$LOOP"/logs/*.md | grep -v launchd | head -n 1)
+
+[ -e "$LOOP/specs/EX-8.md" ] && fail "a merged task's spec is archived at the start of a run" || ok
+[ -e "$LOOP/specs/EX-9.md" ] && fail "a task triage reports closed is archived" || ok
+[ -f "$LOOP/archive/$(date +%Y-%m)/EX-9/EX-9.md" ] && ok || fail "the closed task's spec is in the archive"
+lacks "the report keeps no CLOSED line" "$LOOP/state/last-triage.md" "CLOSED:"
+has "the cleanup is logged" "$LOG" "cleanup: archived 1"
 
 has "triage is told the Designer slots" "$FAKE_HOME/triage-prompt.txt" "Designer slots: 1"
 has "triage is told the ready specs" "$FAKE_HOME/triage-prompt.txt" "EX-2"

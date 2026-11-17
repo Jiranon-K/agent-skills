@@ -97,6 +97,7 @@ A `proposed` design waits for the owner: list it in the report under "รอร�
 Line 1: `NOTIFY: <short Thai summary, ≤ 80 chars>` when something is new or changed vs the previous report (new task, route or labels written, comment posted, an answer arrived, a pick, a task sent to design, a status moved); otherwise `NOTIFY: none`. An unanswered question alone is not a change.
 Then one line per pick: `PICK: <task key> <repo key> <risk>` (in-sprint picks first; say in the report which picks are out-of-sprint and why the sprint had none left) (repo key = first column of `~/loop/repos`), or a single `PICK: none`.
 Then one line per task sent to design: `DESIGN: <task key> <repo key> <risk>`, or a single `DESIGN: none`.
+Then one line per task closed outside the Loop: `CLOSED: <task key>`, or a single `CLOSED: none`. A key qualifies when it is in "Ready specs" or "Designs", is not in "Handled tickets", is missing from the open tasks you listed, and `get_task <key>` shows it in a done or cancelled status. A task that only moved to another assignee or is still open does not qualify. The runner archives its spec and design package.
 
 Then a Thai markdown report. Every task cell is a link to its task URL from `workspace.md`, written `[APP-39](<url>)`, so the summary can link it without tools.
 

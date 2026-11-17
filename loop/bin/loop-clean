@@ -1,0 +1,143 @@
+#!/bin/bash
+set -u
+
+LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
+STATE="${LOOP_STATE:-$LOOP_DIR/bin/loop-state}"
+SPEC="${LOOP_SPEC:-$LOOP_DIR/bin/loop-spec}"
+ARCHIVE="${LOOP_ARCHIVE_DIR:-$LOOP_DIR/archive}"
+ARCHIVE_DAYS="${LOOP_ARCHIVE_DAYS:-30}"
+TICKET_DAYS="${LOOP_TICKET_DAYS:-14}"
+LOG_DAYS="${LOOP_LOG_DAYS:-60}"
+SPECS="$LOOP_DIR/specs"
+DESIGNS="$LOOP_DIR/designs"
+TICKETS="$LOOP_DIR/state/tickets"
+
+usage() {
+  cat >&2 <<'USAGE'
+loop-clean owns every removal in $LOOP_DIR. It archives before it deletes and
+never touches a worktree or a task the Loop is still working on.
+
+  loop-clean [--dry-run]                    sweep: merged tasks, approved candidates, expired files
+  loop-clean [--dry-run] archive <task>...  archive the spec and design package of tasks closed outside the Loop
+
+Days kept (0 keeps forever): LOOP_ARCHIVE_DAYS=30 LOOP_TICKET_DAYS=14 LOOP_LOG_DAYS=60.
+The archive lives in LOOP_ARCHIVE_DIR (default $LOOP_DIR/archive), one folder per month and task.
+USAGE
+  exit 2
+}
+
+dry=0 archived=0 removed=0 kept=0
+say() { printf '%s\n' "$*"; }
+verb() { if [ "$dry" -eq 1 ]; then echo "would $1"; else echo "$1"; fi; }
+valid_task() { case "$1" in ""|*/*|.*) return 1 ;; esac; return 0; }
+
+remove() {
+  say "$(verb remove) $1 ($2)"
+  removed=$((removed + 1))
+  [ "$dry" -eq 1 ] || rm -rf "$1"
+}
+
+keep() {
+  say "kept $1 ($2)"
+  kept=$((kept + 1))
+}
+
+move_to_archive() {
+  local source="$1" dest="$2"
+  [ -e "$source" ] || return 0
+  say "$(verb archive) $source"
+  [ "$dry" -eq 1 ] && return 0
+  mkdir -p "$dest"
+  rm -rf "$dest/$(basename "$source")"
+  mv "$source" "$dest/"
+}
+
+archive_task() {
+  local task="$1" dest
+  [ -e "$SPECS/$task.md" ] || [ -d "$DESIGNS/$task" ] || return 0
+  dest="$ARCHIVE/$(date +%Y-%m)/$task"
+  if [ -d "$DESIGNS/$task/candidates" ]; then remove "$DESIGNS/$task/candidates" "candidates of an archived design"; fi
+  move_to_archive "$SPECS/$task.md" "$dest"
+  move_to_archive "$DESIGNS/$task" "$dest"
+  archived=$((archived + 1))
+}
+
+older_than() { [ "$2" -gt 0 ] && [ -n "$(find "$1" -maxdepth 0 -mtime +"$2" 2>/dev/null)" ]; }
+
+delete_merged_branch() {
+  local task="$1" repo branch dir
+  repo=$("$STATE" get "$task" repo)
+  branch=$("$STATE" get "$task" branch)
+  [ -n "$repo" ] && [ -n "$branch" ] || return 0
+  dir=$("$STATE" repo "$repo" 2>/dev/null | cut -d' ' -f1)
+  [ -n "$dir" ] && git -C "$dir" rev-parse -q --verify "refs/heads/$branch" >/dev/null 2>&1 || return 0
+  if [ "$dry" -eq 1 ]; then say "would delete branch $branch in $repo if git shows it merged"; return 0; fi
+  if git -C "$dir" branch -d "$branch" >/dev/null 2>&1; then
+    say "delete branch $branch in $repo"
+    removed=$((removed + 1))
+  else
+    keep "branch $branch in $repo" "git cannot show it merged, as after a squash merge"
+  fi
+}
+
+sweep_merged() {
+  local task file
+  for task in $("$STATE" list merged | cut -d' ' -f1); do
+    archive_task "$task"
+    for file in "$LOOP_DIR/state/mr-draft-$task.md" "$LOOP_DIR/state/mr-body-$task.md"; do
+      [ -f "$file" ] && remove "$file" "MR text of a merged task"
+    done
+    if older_than "$TICKETS/$task" "$TICKET_DAYS"; then
+      delete_merged_branch "$task"
+      remove "$TICKETS/$task" "merged more than $TICKET_DAYS days ago"
+    fi
+  done
+}
+
+sweep_candidates() {
+  local task
+  for task in $("$SPEC" list approved | cut -d' ' -f1); do
+    [ -d "$DESIGNS/$task/candidates" ] && remove "$DESIGNS/$task/candidates" "candidates of an approved design"
+  done
+}
+
+sweep_expired() {
+  local path
+  if [ "$ARCHIVE_DAYS" -gt 0 ] && [ -d "$ARCHIVE" ]; then
+    find "$ARCHIVE" -mindepth 2 -maxdepth 2 -type d -mtime +"$ARCHIVE_DAYS" 2>/dev/null | while read -r path; do
+      echo "$(verb remove) $path (archived more than $ARCHIVE_DAYS days ago)"
+      [ "$dry" -eq 1 ] || rm -rf "$path"
+    done
+    [ "$dry" -eq 1 ] || find "$ARCHIVE" -mindepth 1 -maxdepth 1 -type d -empty -delete 2>/dev/null
+  fi
+  [ "$LOG_DAYS" -gt 0 ] || return 0
+  for path in "$LOOP_DIR"/logs/*.md "$LOOP_DIR"/summaries/*.md; do
+    [ -f "$path" ] && older_than "$path" "$LOG_DAYS" && remove "$path" "older than $LOG_DAYS days"
+  done
+}
+
+archive_closed() {
+  local task status
+  for task in "$@"; do
+    valid_task "$task" || { keep "$task" "not a task key"; continue; }
+    status=$("$STATE" get "$task" status 2>/dev/null)
+    if [ -n "$status" ] && [ "$status" != merged ]; then
+      keep "$task" "the Loop still has it as $status"
+      continue
+    fi
+    if [ "$("$SPEC" status "$task")" = designing ]; then
+      keep "$task" "a Designer is working on it"
+      continue
+    fi
+    archive_task "$task"
+  done
+}
+
+[ "${1:-}" = "--dry-run" ] && { dry=1; shift; }
+case "${1:-}" in
+  "") sweep_merged; sweep_candidates; sweep_expired ;;
+  archive) shift; [ $# -gt 0 ] || usage; archive_closed "$@" ;;
+  *) usage ;;
+esac
+
+[ $((archived + removed + kept)) -eq 0 ] || say "cleanup: archived $archived · removed $removed · kept $kept"

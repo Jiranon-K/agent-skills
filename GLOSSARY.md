@@ -14,5 +14,8 @@ _Avoid_: design doc, plan.
 **Ready spec**: `~/loop/specs/<task>.md` with the line `status: ready`. The only thing a Worker builds from. It exists only because the owner ran `loop-spec approve` through `/loop-design-review`, or wrote it by hand.
 _Avoid_: approved design, grilled spec.
 
+**Loop archive**: where `loop/bin/loop-clean` moves the spec and design package of a task that merged or was closed, one folder per month and task under `LOOP_ARCHIVE_DIR`. `loop-clean` is the only thing that removes files from `~/loop`.
+_Avoid_: backup, trash.
+
 **Cross-vendor seat**: a review or judge seat filled by a model that is not Claude (GPT-6-Luna through codex, Gemini through agy), asked through `loop/bin/loop-ask`. It reads files and answers; a run by the caller decides whether its claim holds.
 _Avoid_: second opinion, external reviewer.

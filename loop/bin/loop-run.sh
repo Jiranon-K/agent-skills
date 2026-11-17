@@ -18,6 +18,8 @@ CONFIG="$LOOP_DIR/config.sh"
 . "$CONFIG"
 MAX_WORKERS="${LOOP_MAX_WORKERS:-2}"
 MAX_DESIGNERS="${LOOP_MAX_DESIGNERS:-1}"
+export LOOP_ARCHIVE_DIR="${LOOP_ARCHIVE_DIR:-$LOOP_DIR/archive}"
+export LOOP_ARCHIVE_DAYS="${LOOP_ARCHIVE_DAYS:-30}"
 # launchd has no user PATH; claude is a native install, glab/git/node come from Homebrew.
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -68,6 +70,7 @@ summarize() {
 ✅ ทำแล้ว    <สรุปสั้น เช่น route 2 ใบ · comment คำถาม 1 ใบ — ลิงก์ task ที่ถูกแก้ทุกใบ> หรือ —
 🔨 กำลังทำ   <task → Worker session ที่เปิด (risk) พร้อมลิงก์> หรือ —
 🧩 design    <task → Designer session ที่เปิดรอบนี้> (แสดงเฉพาะเมื่อมี)
+🧹 cleanup   <บรรทัด "cleanup: archived … removed … kept …" จาก log และของที่ kept พร้อมเหตุผล> (แสดงเฉพาะเมื่อมี)
 👀 รอรีวิว   <task ที่ design เป็น proposed → สั่ง /loop-design-review <task>> (แสดงเฉพาะเมื่อมี)
 ⛔ หยุด      <task: เหตุผลสั้น> (แสดงเฉพาะเมื่อมี)
 ❓ ต้อง grill  <task → ถามใคร เรื่องอะไร> (แสดงเฉพาะเมื่อมี ห้ามยกตัวคำถามมาซ้ำ)
@@ -127,6 +130,9 @@ WORKSPACE_DENY=(
 for T in $("$STATE" list | awk '$2 ~ /status=(mr-open|ready-to-ship|merged)/ && / wt=/ { print $1 }'); do
   "$STATE" release "$T" >/dev/null 2>&1 || log "## $NOW slot of $T not released (uncommitted changes)"
 done
+
+CLEANED=$("$LOOP_DIR/bin/loop-clean" 2>&1)
+[ -n "$CLEANED" ] && { DID=1; log "## $NOW cleanup" "" "$CLEANED" ""; }
 
 # ---------- Coordinator ----------
 PREV="(none)"
@@ -202,12 +208,17 @@ fi
 MSG=$(field "$OUT" NOTIFY)
 PICKS=$(printf '%s\n' "$OUT" | grep '^PICK:' | sed 's/^PICK: *//' | grep -v '^none$')
 DESIGN_PICKS=$(printf '%s\n' "$OUT" | grep '^DESIGN:' | sed 's/^DESIGN: *//' | grep -v '^none$')
-REPORT=$(printf '%s\n' "$OUT" | tail -n +$((NLINE + 1)) | grep -v -e '^PICK:' -e '^DESIGN:')
+CLOSED=$(printf '%s\n' "$OUT" | grep '^CLOSED:' | sed 's/^CLOSED: *//' | grep -v '^none$' | tr '\n' ' ')
+REPORT=$(printf '%s\n' "$OUT" | tail -n +$((NLINE + 1)) | grep -v -e '^PICK:' -e '^DESIGN:' -e '^CLOSED:')
 printf '%s\n' "$REPORT" > "$LAST"
 log "## $NOW triage" "" "PICK: ${PICKS:-none}" "WORKERS: $WORKING working · $SLOTS free of $MAX_WORKERS" \
   "DESIGN: ${DESIGN_PICKS:-none}" "DESIGNERS: $DESIGNING designing · $DESIGN_SLOTS free of $MAX_DESIGNERS" \
   "RELEASE: $RELEASE_REPO next $NEXT_WED · merge-back pending commits: $MERGE_BACK_PENDING" "$REPORT" ""
 [ "$MSG" != "none" ] && { DID=1; notify "$MSG"; }
+if [ -n "${CLOSED// /}" ]; then
+  CLEANED=$("$LOOP_DIR/bin/loop-clean" archive $CLOSED 2>&1)
+  [ -n "$CLEANED" ] && { DID=1; log "## $NOW cleanup (closed outside the Loop)" "" "$CLEANED" ""; }
+fi
 
 # ---------- Workers ----------
 [ "${TRIAGE_ONLY:-0}" = "1" ] && exit 0

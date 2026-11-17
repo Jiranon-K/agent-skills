@@ -100,6 +100,7 @@ link loop/bin/loop-push "$HOME/loop/bin/loop-push"
 link loop/bin/loop-next "$HOME/loop/bin/loop-next"
 link loop/bin/loop-spec "$HOME/loop/bin/loop-spec"
 link loop/bin/loop-ask "$HOME/loop/bin/loop-ask"
+link loop/bin/loop-clean "$HOME/loop/bin/loop-clean"
 
 # SessionStart hook and loop-run.sh call it; it reads each repo's own .worktreelinks.
 link scripts/wt-setup "$HOME/.claude/hooks/wt-setup"

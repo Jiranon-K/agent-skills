@@ -8,7 +8,7 @@ description: Worker of the Loop Engineering system. Runs in its own herdr sessio
 Arguments: `<task key> <repo key> <risk>`, e.g. `APP-39 web-app medium`.
 You run in a visible session the owner may watch or steer, but do not wait for answers: when something is unclear, stop as **blocked** (step 9). Never guess.
 
-Read first: `~/loop/workspace.md` (tracker facts), the repo's section in `~/Home/docs/repo-map.md`, then the repo's own `AGENTS.md` / `CLAUDE.md` and the docs they point to. The repo's rules win over this skill, except where this skill says the loop's MR is a Draft.
+Read first: `~/loop/workspace.md` (tracker facts), the repo's section in `~/Home/docs/repo-map.md`, then the repo's own `AGENTS.md` / `CLAUDE.md` and the docs they point to. The repo's rules win over this skill, except where this skill says the loop's MR is a Draft and gives the shape of its description (step 8).
 
 ## Hard rules
 
@@ -50,11 +50,28 @@ The pstack skills live under `~/loop/pstack/skills/<name>/SKILL.md`. The `Skill`
 8. **Deliver**:
    - **Remote allowed?** If the repo's `AGENTS.md` / `CLAUDE.md` still says agents must not reach a remote (push or MR), do not push: go to "Local delivery" below.
    - Push: `~/loop/bin/loop-push` (web-app: `.harness/scripts/ship.sh --yes` does push and MR; follow its feature-record steps first).
-   - Open the MR as a **Draft** into the base branch with the repo's MR template: `glab mr create --draft --target-branch <base> --title ... --description ... --label "owner:you,needs:human-verify"` (add `needs:e2e` only when the change has UI and step 5's e2e could not run; project-b repos take `-R` from `workspace.md`). If a script opened the MR, make it a Draft and add the labels with `glab mr update <n> --draft --label ...`. Confirm with `glab mr view <n>` that it is a Draft and the labels are there.
-   - The MR description carries the evidence under the repo's template: **Verification** (the exact commands and results), **Review** (proven findings and their fixes, dropped findings as a count per reviewer with the reason, and which reviewers ran), **Blast radius** for risk:high, **Deviations from the design** (or "none"), and for UI the e2e screenshots, uploaded with `glab api projects/<id>/uploads -F file=@<png>`, one per acceptance criterion. Paste `decisions.tsv` from the package as a table in a collapsed section.
+   - Write the MR to `~/loop/state/mr-body-<task>.md` with the `Write` tool: line 1 is `# <MR title>` (a Conventional Commit subject, English), the rest is the description below. Then run `~/loop/bin/loop-mr <task>` in the worktree (`~/loop/bin/loop-mr <task> e2e` only when the change has UI and step 5's e2e could not run). It opens the MR as a Draft into the base branch with the Loop's labels, or replaces the title and description of the MR a script already opened for this branch, checks the Draft flag and the labels, and prints the MR URL. It is the only way to open or edit an MR here: `glab mr create` and `glab mr update` are denied. When it refuses the body, fix what it names and run it again; never leave a placeholder description.
+   - The description follows the `mattpocock-skills:pr` skill: invoke it with the `Skill` tool and follow it. Its three sections, in this order and with these exact headings, are the whole description; a repo's own MR template does not replace them.
+     ```
+     ## Summary
+     <one or two sentences from the user's side, then the card as a link>
+     <a fenced diagram, tree or diff sketch: the smallest view that shows the change>
+
+     ## Evidence
+     - **Before:** <the failing test run, output or screenshot>
+       **After:** <the passing run, output or screenshot>
+     <a table of the exact verify commands and their results; e2e screenshots, one per acceptance criterion>
+
+     ## Merge Danger
+     **Door:** <one-way or two-way>
+     <why, in one line>
+     **Blast Radius:** <one word>
+     <what could break, and the owner's manual checks as a task list>
+     ```
+     Keep it short and in English. Put what the owner must do in `Merge Danger`. Loop detail goes in collapsed `<details>` blocks at the end of `Evidence`, one each: **Review** (proven findings and their fixes, dropped findings as a count per reviewer with the reason, and which reviewers ran), **Deviations from the design** (or "none"), and `decisions.tsv` from the package as a table. Upload e2e screenshots with `glab api projects/<id>/uploads -F file=@<png>`. No footer line after `Merge Danger`.
    - Workspace: `add_task_link <task> <MR URL>`, `transition_task` to the "MR open" status, then post the handoff comment (below), then `finish_work <task> done "<one line>"`.
    - `~/loop/bin/loop-state set <task> mr-open branch=<branch> mr=<MR URL> ui=<yes|no>`.
-   - **Local delivery** (remote not allowed): commit everything, write the MR title and description to `~/loop/state/mr-draft-<task>.md`, post the handoff comment with "MR (Draft): ยังไม่เปิด — repo นี้ห้าม agent push" and the exact commands for the owner, run from the main checkout because the slot worktree is freed later (`git -C <main checkout> push -u origin <branch>`, then `glab mr create --draft ...`), `finish_work <task> done`, leave the status at "Working", and run `~/loop/bin/loop-state set <task> ready-to-ship branch=<branch> ui=<yes|no>`.
+   - **Local delivery** (remote not allowed): commit everything, write the MR title and description to `~/loop/state/mr-body-<task>.md` in the same shape, post the handoff comment with "MR (Draft): ยังไม่เปิด — repo นี้ห้าม agent push" and the exact commands for the owner, run from the main checkout because the slot worktree is freed later (`git -C <main checkout> push -u origin <branch>`, then `~/loop/bin/loop-mr <task>` from a checkout of that branch), `finish_work <task> done`, leave the status at "Working", and run `~/loop/bin/loop-state set <task> ready-to-ship branch=<branch> ui=<yes|no>`.
 9. **Blocked** at any point: `update_work_state awaiting_input` with the reason, post a question comment in the format of the `loop-triage` skill (mention only the assignee; name who to ask if known), add label `needs:human`, set `route=human`, `finish_work <task> error "<reason>"`, and `~/loop/bin/loop-state set <task> blocked`. Leave the status where it is.
 
 ## Handoff comment (Thai, for a human; mention only the assignee)

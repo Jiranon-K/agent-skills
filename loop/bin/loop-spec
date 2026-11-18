@@ -11,7 +11,7 @@ usage() {
   cat >&2 <<'USAGE'
 loop-spec owns the design packages in $LOOP_DIR/designs and the approval of specs.
 
-  loop-spec status <task>                   approved | designing | redo | blocked | proposed | none
+  loop-spec status <task>                   approved | split | designing | redo | blocked | proposed | none
   loop-spec list [status]                   one line per design: "<task> <status> repo=... risk=..."
   loop-spec path <task>                     the design package directory
   loop-spec start <task> <repo> <risk>      claim a design (status must be none, redo or blocked)
@@ -19,6 +19,8 @@ loop-spec owns the design packages in $LOOP_DIR/designs and the approval of spec
   loop-spec block <task> <reason>           Designer: cannot design without a person's answer
   loop-spec feedback <task>                 append the owner's or Worker's pushback from stdin
   loop-spec approve <task>                  owner only: copy spec.md to specs/<task>.md as ready
+  loop-spec part <task> <repo> <new task>   owner only: hand one repo's part of a design that covers
+                                            several repos to its own task, as that task's ready spec
   loop-spec log <task> <phase> <decision> <why> <evidence> <result>
                                             append one row to decisions.tsv
 USAGE
@@ -29,6 +31,20 @@ die() { echo "loop-spec: $*" >&2; exit 1; }
 is_one_of() { case " $2 " in *" $1 "*) return 0 ;; esac; return 1; }
 need_task() { case "${1:-}" in ""|*/*|.*) die "bad task key '${1:-}'" ;; esac; }
 dir_of() { echo "$DESIGNS/$1"; }
+repos_of() { sed -n 's/^repo=//p' "$DESIGNS/$1/meta" 2>/dev/null | tr ',' ' '; }
+covers_several_repos() { [ "$(repos_of "$1" | wc -w)" -gt 1 ]; }
+is_proposed_spec() {
+  [ -s "$1" ] || die "$1 is missing or empty"
+  grep -qx 'status: proposed' "$1" || die "$1 needs the line 'status: proposed'"
+  grep -q '^## Acceptance criteria' "$1" || die "$1 needs a '## Acceptance criteria' section"
+}
+write_ready() {
+  mkdir -p "$SPECS"
+  sed -e "s/^task: .*\$/task: $2/" -e "s/^status: proposed\$/status: ready\\
+approved: $(date +%F)/" "$1" > "$SPECS/$2.md.tmp" && mv "$SPECS/$2.md.tmp" "$SPECS/$2.md"
+  grep -qx 'status: ready' "$SPECS/$2.md" || die "could not write $SPECS/$2.md"
+  echo "$SPECS/$2.md"
+}
 marker_of() { echo "$DESIGNS/$1/.designing"; }
 
 marker_is_fresh() {
@@ -50,6 +66,7 @@ newest_of() {
 status_of() {
   if grep -qx 'status: ready' "$SPECS/$1.md" 2>/dev/null; then echo approved; return; fi
   if marker_is_fresh "$1"; then echo designing; return; fi
+  if [ -s "$DESIGNS/$1/split" ] && [ "$(newest_of "$1")" != feedback.md ]; then echo split; return; fi
   case "$(newest_of "$1")" in
     spec.md) echo proposed ;;
     feedback.md) echo redo ;;
@@ -100,12 +117,14 @@ cmd_start() {
 cmd_done() {
   [ $# -eq 1 ] || usage
   need_task "$1"
-  local dir
+  local dir repo
   dir=$(dir_of "$1")
   [ -s "$dir/design.md" ] || die "$dir/design.md is missing or empty"
-  [ -s "$dir/spec.md" ] || die "$dir/spec.md is missing or empty"
-  grep -qx 'status: proposed' "$dir/spec.md" || die "$dir/spec.md needs the line 'status: proposed'"
-  grep -q '^## Acceptance criteria' "$dir/spec.md" || die "$dir/spec.md needs a '## Acceptance criteria' section"
+  is_proposed_spec "$dir/spec.md"
+  if covers_several_repos "$1"; then
+    for repo in $(repos_of "$1"); do is_proposed_spec "$dir/parts/$repo.md"; done
+  fi
+  rm -f "$dir/split"
   touch "$dir/spec.md"
   release_marker "$1"
 }
@@ -138,11 +157,23 @@ cmd_approve() {
   local status
   status=$(status_of "$1")
   [ "$status" = proposed ] || die "$1 is $status; only a proposed design can be approved"
-  mkdir -p "$SPECS"
-  sed "s/^status: proposed\$/status: ready\\
-approved: $(date +%F)/" "$(dir_of "$1")/spec.md" > "$SPECS/$1.md.tmp" && mv "$SPECS/$1.md.tmp" "$SPECS/$1.md"
-  grep -qx 'status: ready' "$SPECS/$1.md" || die "could not write $SPECS/$1.md"
-  echo "$SPECS/$1.md"
+  covers_several_repos "$1" && die "$1 covers several repos ($(repos_of "$1")); hand each part to its own task with: loop-spec part $1 <repo> <new task>"
+  write_ready "$(dir_of "$1")/spec.md" "$1"
+}
+
+cmd_part() {
+  [ $# -eq 3 ] || usage
+  need_task "$1"
+  need_task "$3"
+  local status part
+  status=$(status_of "$1")
+  is_one_of "$status" "proposed split" || die "$1 is $status; a part is handed out only from a proposed or split design"
+  is_one_of "$2" "$(repos_of "$1")" || die "$1 has no part for repo '$2' (its repos: $(repos_of "$1"))"
+  [ "$1" != "$3" ] || die "the part needs its own task key, not $1"
+  part="$(dir_of "$1")/parts/$2.md"
+  is_proposed_spec "$part"
+  write_ready "$part" "$3"
+  printf '%s %s\n' "$2" "$3" >> "$(dir_of "$1")/split"
 }
 
 clean_cell() { printf '%s' "$1" | tr '\t\n' '  ' | sed "s/^[=+@-]/'&/"; }
@@ -163,6 +194,6 @@ cmd_log() {
 cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
-  status|list|path|start|done|block|feedback|approve|log) "cmd_$cmd" "$@" ;;
+  status|list|path|start|done|block|feedback|approve|part|log) "cmd_$cmd" "$@" ;;
   *) usage ;;
 esac

@@ -96,6 +96,7 @@ link loop/bin/loop-state "$HOME/loop/bin/loop-state"
 link loop/bin/loop-heavy "$HOME/loop/bin/loop-heavy"
 # loop-push is the only way a Worker pushes: current feature branch, no refspec, no force.
 link loop/bin/loop-push "$HOME/loop/bin/loop-push"
+link loop/bin/loop-mr "$HOME/loop/bin/loop-mr"
 # loop-next: a Worker starts the next run when its task ends.
 link loop/bin/loop-next "$HOME/loop/bin/loop-next"
 link loop/bin/loop-spec "$HOME/loop/bin/loop-spec"

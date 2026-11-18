@@ -36,12 +36,12 @@ Tasks in the `Triage` status or in a review or later stage are status rows only:
   - **low**: docs/test/chore or a small bug, clear acceptance criteria, likely ≤ ~5 files, no open dependency.
   - otherwise **medium**.
 - `repo:` from the task's `repo:` label or, when certain, from the description and `repo-map.md` (then add the label).
-- **Clear** = acceptance criteria are stated, no open question in the description or comments, no unfinished blocker task, exactly one repo and it is in `~/loop/repos`.
+- **Clear** = acceptance criteria are stated, no open question in the description or comments, no unfinished blocker task, and every repo it touches is in `~/loop/repos`. A task may touch several repos: it is still clear, and the Designer splits it into one part per repo.
 
 Route:
 - **Clear, any risk** → `route=agent`. Risk does not block the agent; it is reported.
 - **Unclear or blocked** → `route=human` and label `needs:human`, plus one question comment (below).
-- **Clear but not agent work** (several repos, a repo not in `~/loop/repos`, needs a decision or access only a person has) → `route=human`, no comment; give the reason in the report.
+- **Clear but not agent work** (a repo not in `~/loop/repos`, needs a decision or access only a person has) → `route=human`, no comment; give the reason in the report.
 
 ## Comments
 
@@ -82,21 +82,21 @@ The prompt gives `Worker slots: N`. Pick up to N tasks (0 → none) that have `r
 3. Then priority: URGENT > HIGH > MEDIUM > LOW.
 4. Then oldest `updatedAt`.
 
-Never pick a `web-app` task while the release context says merge-back is pending (>0). Never pick two tasks for the same repo in one run.
+Never pick a `web-app` task while the release context says merge-back is pending (>0). Never pick two tasks for the same repo in one run. Never pick a task whose design in the "Designs" list names several repos (`repo=a,b`) or is `split`: a Worker builds one repo, so each part is picked as its own task once the owner has handed it out.
 
 A **ready spec** is `~/loop/specs/<task key>.md` with the line `status: ready`: the owner approved the Designer's package with `/loop-design-review`, or wrote the spec by hand. Never write or edit a spec. A `route=agent` task without one is not picked: it goes to design (below).
 
 ## Design
 
-The prompt gives `Designer slots: N` and a "Designs" list (`<task> <status> repo=… risk=…`; a task that is not listed has no design yet). Send up to N tasks (0 → none) to a Designer. A task qualifies when it has `route=agent`, is in its space's "Pick from" status, is not in "Handled tickets", its repo is in `~/loop/repos`, its key is not in "Ready specs", and its design status is absent, `redo` or `blocked`. Never send a task whose design is `designing`, `proposed` or `approved`. Order them as in "Pick"; two tasks of one repo may be designed in the same run, and the merge-back rule does not apply (a Designer only reads).
+The prompt gives `Designer slots: N per space`, a line `Spaces with no free Designer slot: …` and a "Designs" list (`<task> <status> repo=… risk=…`; a task that is not listed has no design yet). Each space has its own slots, so one space's queue never holds back another's: per space that is not on the no-free-slot line, send up to N tasks (0 → none) to a Designer, and send none for a space on that line. A task qualifies when it has `route=agent`, is in its space's "Pick from" status, is not in "Handled tickets", its repo is in `~/loop/repos`, its key is not in "Ready specs", and its design status is absent, `redo` or `blocked`. Never send a task whose design is `designing`, `proposed`, `split` or `approved`. A task that touches several repos qualifies when every one of them is in `~/loop/repos`; so does a task that was routed `route=human` earlier only because it touches several repos (set `route=agent` and say so in the report). Order the tasks of each space as in "Pick"; two tasks of one repo may be designed in the same run, and the merge-back rule does not apply (a Designer only reads).
 
-A `proposed` design waits for the owner: list it in the report under "รอรีวิว design" and post no comment for it.
+A `proposed` design waits for the owner: list it in the report under "รอรีวิว design" and post no comment for it. A `split` design is done: its parts are their own tasks now, so give its task a status row only.
 
 ## Output format (exact)
 
 Line 1: `NOTIFY: <short Thai summary, ≤ 80 chars>` when something is new or changed vs the previous report (new task, route or labels written, comment posted, an answer arrived, a pick, a task sent to design, a status moved); otherwise `NOTIFY: none`. An unanswered question alone is not a change.
 Then one line per pick: `PICK: <task key> <repo key> <risk>` (in-sprint picks first; say in the report which picks are out-of-sprint and why the sprint had none left) (repo key = first column of `~/loop/repos`), or a single `PICK: none`.
-Then one line per task sent to design: `DESIGN: <task key> <repo key> <risk>`, or a single `DESIGN: none`.
+Then one line per task sent to design: `DESIGN: <task key> <repo key> <risk>`, or a single `DESIGN: none`. For a task that touches several repos write every repo key joined by commas with no space, the repo that holds most of the change first: `DESIGN: <task key> <repo key>,<repo key> <risk>`.
 Then one line per task closed outside the Loop: `CLOSED: <task key>`, or a single `CLOSED: none`. A key qualifies when it is in "Ready specs" or "Designs", is not in "Handled tickets", is missing from the open tasks you listed, and `get_task <key>` shows it in a done or cancelled status. A task that only moved to another assignee or is still open does not qualify. The runner archives its spec and design package.
 
 Then a Thai markdown report. Every task cell is a link to its task URL from `workspace.md`, written `[APP-39](<url>)`, so the summary can link it without tools.

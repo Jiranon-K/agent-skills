@@ -27,7 +27,11 @@ git -C "$TMP/web-app" commit -q --allow-empty -m init
 git -C "$TMP/web-app" branch -M staging
 git -C "$TMP/web-app" remote add origin "$TMP/origin.git"
 git -C "$TMP/web-app" push -q origin staging staging:master
-echo "web-app $TMP/web-app staging repo:web-app" > "$LOOP/repos"
+git init -q "$TMP/api"
+git -C "$TMP/api" commit -q --allow-empty -m init
+git -C "$TMP/api" branch -M staging
+git -C "$TMP/api" remote add origin "$TMP/origin.git"
+printf '%s\n' "web-app $TMP/web-app staging repo:web-app" "api $TMP/api staging repo:api" > "$LOOP/repos"
 printf -- '---\ntask: EX-2\nstatus: ready\n---\n' > "$LOOP/specs/EX-2.md"
 
 fake() { printf '#!/bin/bash\n%s\n' "$2" > "$BIN/$1"; chmod +x "$BIN/$1"; }
@@ -40,7 +44,7 @@ fake herdr-app 'case "$1" in status) exit 0 ;; do) printf "%s\n" "$3" >> "$HOME/
 fake claude 'case "$*" in
   *"/loop-triage"*)
     printf "%s\n" "$*" > "$HOME/triage-prompt.txt"
-    printf "NOTIFY: picked\nPICK: EX-2 web-app medium\nDESIGN: EX-1 web-app low\nCLOSED: EX-9\n### report\n" ;;
+    printf "NOTIFY: picked\nPICK: EX-2 web-app medium\nDESIGN: EX-1 web-app low\nDESIGN: EX-5 web-app low\nDESIGN: OT-1 web-app,api high\nCLOSED: EX-9\n### report\n" ;;
   *) echo "summary" ;;
 esac'
 
@@ -55,6 +59,7 @@ for line in open(sys.argv[1]):
         argv = space["argv"]
         print({"command": argv[-1], "mode": argv[argv.index("--permission-mode") + 1], "folder": space["folder"],
                "adddir": argv[argv.index("--add-dir") + 1],
+               "dirs": " ".join(argv[argv.index("--add-dir") + 1:argv.index("--allowedTools")]),
                "deny": " ".join(argv[argv.index("--disallowedTools") + 1:argv.index("--")]),
                "allow": " ".join(argv[argv.index("--allowedTools") + 1:argv.index("--disallowedTools")])}[sys.argv[3]])' \
     "$FAKE_HOME/spaces.json" "$1" "$2"
@@ -73,7 +78,8 @@ LOG=$(ls "$LOOP"/logs/*.md | grep -v launchd | head -n 1)
 lacks "the report keeps no CLOSED line" "$LOOP/state/last-triage.md" "CLOSED:"
 has "the cleanup is logged" "$LOG" "cleanup: archived 1"
 
-has "triage is told the Designer slots" "$FAKE_HOME/triage-prompt.txt" "Designer slots: 1"
+has "triage is told the Designer slots of each space" "$FAKE_HOME/triage-prompt.txt" "Designer slots: 1 per space"
+has "no space is full before the first design" "$FAKE_HOME/triage-prompt.txt" "Spaces with no free Designer slot: (none)"
 has "triage is told the ready specs" "$FAKE_HOME/triage-prompt.txt" "EX-2"
 has "triage tools use the configured MCP server" "$FAKE_HOME/triage-prompt.txt" "mcp__workspace__query_view"
 eq "pstack link points at the plugin" "$(readlink "$LOOP/pstack")" "$FAKE_HOME/.claude/plugins/cache/market/pstack/1.0.0"
@@ -95,10 +101,20 @@ case "$(session_field "design EX-1" allow)" in *"Edit "*|*" Write "*) fail "desi
 has "the run is logged" "$LOG" "designer started EX-1 (web-app, risk:low)"
 lacks "the report keeps no DESIGN line" "$LOOP/state/last-triage.md" "DESIGN:"
 
+eq "a second task of the same space waits" "$(spec status EX-5)" "none"
+has "the waiting task is logged" "$LOG" "designer skipped — EX-5: no free Designer slot in EX"
+eq "another space gets its own Designer" "$(spec status OT-1)" "designing"
+eq "a design over several repos opens in the first repo" "$(session_field "design OT-1" folder)" "$TMP/web-app"
+eq "a design over several repos keeps every repo key" "$(session_field "design OT-1" command)" "/loop-design OT-1 web-app,api high"
+eq "the other repo is a working folder" "$(session_field "design OT-1" dirs)" "$LOOP $TMP/api"
+case "$(session_field "design OT-1" allow)" in *"Bash(git -C $TMP/api show:*)"*) ok ;; *) fail "designer may read the other repo at its base" ;; esac
+case "$(session_field "design EX-1" allow)" in *"git -C"*) fail "a one-repo designer gets no git -C rule" ;; *) ok ;; esac
+case "$(session_field "design OT-1" deny)" in *"loop-spec part"*) ok ;; *) fail "designer may not hand out a part" ;; esac
+
 run_loop
-has "a second run sees no free Designer slot" "$FAKE_HOME/triage-prompt.txt" "Designer slots: 0"
+has "a second run names the full spaces" "$FAKE_HOME/triage-prompt.txt" "Spaces with no free Designer slot: EX OT"
 has "a second run lists the design" "$FAKE_HOME/triage-prompt.txt" "- EX-1 designing repo=web-app risk=low"
-has "a busy Designer is not doubled" "$LOG" "designer skipped — EX-1: no free Designer slot"
+has "a busy Designer is not doubled" "$LOG" "designer skipped — EX-1: no free Designer slot in EX"
 eq "one designer session only" "$(grep -c '"design EX-1"' "$FAKE_HOME/spaces.json")" "1"
 
 echo "pass $PASS fail $FAIL"

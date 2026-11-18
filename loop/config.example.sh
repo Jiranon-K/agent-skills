@@ -6,3 +6,5 @@ TASK_LINK_EXAMPLE="[APP-39](https://.../tasks/<id>)"
 LOOP_ARCHIVE_DAYS=30
 LOOP_TICKET_DAYS=14
 LOOP_LOG_DAYS=60
+LOOP_MR_LABELS="owner:you,needs:human-verify"
+LOOP_GLAB_REPO_project_b_web="git.example.com/project-b/project-b-web"

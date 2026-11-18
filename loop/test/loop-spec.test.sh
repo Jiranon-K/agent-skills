@@ -78,5 +78,23 @@ eq "log writes a header" "$(head -n 1 "$LOOP_DIR/designs/EX-4/decisions.tsv")" "
 eq "log strips tabs and guards formulas" "$(tail -n 1 "$LOOP_DIR/designs/EX-4/decisions.tsv" | cut -f2-)" "sketch	picked candidate B	smaller surface	design.md	'=open"
 errs "log needs six arguments" log EX-4 sketch only
 
+"$SPEC" start EX-6 web-app,api high
+write_package EX-6
+errs "done needs a part per repo" done EX-6
+mkdir -p "$LOOP_DIR/designs/EX-6/parts"
+for repo in web-app api; do cp "$LOOP_DIR/designs/EX-6/spec.md" "$LOOP_DIR/designs/EX-6/parts/$repo.md"; done
+"$SPEC" done EX-6
+eq "a design over several repos is proposed" "$("$SPEC" status EX-6)" "proposed"
+errs "a design over several repos is not approved whole" approve EX-6
+errs "a part needs a repo of the design" part EX-6 other EX-7
+errs "a part needs its own task" part EX-6 api EX-6
+"$SPEC" part EX-6 api EX-7 >/dev/null
+eq "a handed-out part is a ready spec" "$("$SPEC" status EX-7)" "approved"
+eq "the part carries its own task key" "$(grep -c '^task: EX-7$' "$LOOP_DIR/specs/EX-7.md")" "1"
+eq "the parent design is split" "$("$SPEC" status EX-6)" "split"
+errs "a split design is not designed again" start EX-6 web-app,api high
+"$SPEC" part EX-6 web-app EX-8 >/dev/null
+eq "the second part is handed out from a split design" "$("$SPEC" status EX-8)" "approved"
+
 echo "pass $PASS fail $FAIL"
 [ "$FAIL" -eq 0 ]

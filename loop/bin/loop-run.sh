@@ -140,10 +140,16 @@ WORKING=$("$STATE" list working | grep -c .)
 SLOTS=$(( MAX_WORKERS - WORKING ))
 [ "$SLOTS" -lt 0 ] && SLOTS=0
 [ "${TRIAGE_ONLY:-0}" = "1" ] && SLOTS=0
-DESIGNING=$("$SPEC" list designing | grep -c .)
-DESIGN_SLOTS=$(( MAX_DESIGNERS - DESIGNING ))
-[ "$DESIGN_SLOTS" -lt 0 ] && DESIGN_SLOTS=0
-[ "${TRIAGE_ONLY:-0}" = "1" ] && DESIGN_SLOTS=0
+DESIGNING_KEYS=$("$SPEC" list designing | cut -d' ' -f1)
+DESIGNING=$(printf '%s\n' "$DESIGNING_KEYS" | grep -c .)
+[ "${TRIAGE_ONLY:-0}" = "1" ] && MAX_DESIGNERS=0
+space_of() { echo "${1%%-*}"; }
+designing_in() { printf '%s\n' "$DESIGNING_KEYS" | grep -c "^$1-"; }
+FULL_SPACES=""
+for DESIGN_SPACE in $(printf '%s\n' "$DESIGNING_KEYS" | grep . | sed 's/-.*//' | sort -u); do
+  [ "$(designing_in "$DESIGN_SPACE")" -ge "$MAX_DESIGNERS" ] && FULL_SPACES="$FULL_SPACES $DESIGN_SPACE"
+done
+FULL_SPACES="${FULL_SPACES# }"
 DESIGNS=$("$SPEC" list | sed 's/^/- /')
 PSTACK=$(ls -dt "$HOME"/.claude/plugins/cache/*/pstack/*/ 2>/dev/null | head -n 1)
 [ -n "$PSTACK" ] && ln -sfn "${PSTACK%/}" "$LOOP_DIR/pstack"
@@ -176,7 +182,8 @@ ${HANDLED:-(none)}
 Ready specs (only these may be picked):
 ${READY_SPECS:-(none)}
 
-Designer slots: $DESIGN_SLOTS
+Designer slots: $MAX_DESIGNERS per space
+Spaces with no free Designer slot: ${FULL_SPACES:-(none)}
 
 Designs (do not send to design again unless the status is redo):
 ${DESIGNS:-(none)}
@@ -210,7 +217,7 @@ CLOSED=$(printf '%s\n' "$OUT" | grep '^CLOSED:' | sed 's/^CLOSED: *//' | grep -v
 REPORT=$(printf '%s\n' "$OUT" | tail -n +$((NLINE + 1)) | grep -v -e '^PICK:' -e '^DESIGN:' -e '^CLOSED:')
 printf '%s\n' "$REPORT" > "$LAST"
 log "## $NOW triage" "" "PICK: ${PICKS:-none}" "WORKERS: $WORKING working · $SLOTS free of $MAX_WORKERS" \
-  "DESIGN: ${DESIGN_PICKS:-none}" "DESIGNERS: $DESIGNING designing · $DESIGN_SLOTS free of $MAX_DESIGNERS" \
+  "DESIGN: ${DESIGN_PICKS:-none}" "DESIGNERS: $DESIGNING designing · $MAX_DESIGNERS per space · full: ${FULL_SPACES:-none}" \
   "RELEASE: $RELEASE_REPO next $NEXT_WED · merge-back pending commits: $MERGE_BACK_PENDING" "$REPORT" ""
 [ "$MSG" != "none" ] && { DID=1; notify "$MSG"; }
 if [ -n "${CLOSED// /}" ]; then
@@ -227,9 +234,10 @@ WORKER_ALLOW=(
   "Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)" "Bash(git add:*)"
   "Bash(git commit:*)" "Bash(git branch:*)" "Bash(git rev-parse:*)" "Bash(git fetch:*)" "Bash(git rev-list:*)"
   "Bash(~/loop/bin/loop-push)" "Bash($HOME/loop/bin/loop-push)"
+  "Bash(~/loop/bin/loop-mr:*)" "Bash($HOME/loop/bin/loop-mr:*)"
   "Bash(yarn:*)" "Bash(npm:*)" "Bash(npx:*)" "Bash(node:*)" "Bash(bun:*)" "Bash(go:*)" "Bash(make:*)"
   "Bash(uv:*)" "Bash(python3:*)" "Bash(./init.sh:*)" "Bash(./scripts/:*)" "Bash(.harness/scripts/:*)"
-  "Bash(glab mr create:*)" "Bash(glab mr view:*)" "Bash(glab mr update:*)" "Bash(glab mr note:*)"
+  "Bash(glab mr view:*)" "Bash(glab mr note:*)"
   "Bash(ls:*)" "Bash(cat:*)" "Bash(head:*)" "Bash(tail:*)" "Bash(grep:*)" "Bash(find:*)"
   "Bash(wc:*)" "Bash(mkdir:*)" "Bash(ps:*)" "Bash(pgrep:*)" "Bash(pkill -f karma:*)"
   "Bash(sed:*)" "Bash(which:*)" "Bash(docker:*)" "Bash(colima status:*)" "Bash(glab api projects/:*)"
@@ -249,8 +257,9 @@ WORKER_ALLOW=(
 )
 WORKER_DENY=(
   "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}"
-  "Bash(git push:*)" "Bash(git -C:*)" "Bash(glab api -X:*)" "Bash(glab api --method:*)"
+  "Bash(git push:*)" "Bash(git -C:*)" "Bash(glab mr create:*)" "Bash(glab mr update:*)" "Bash(glab api -X:*)" "Bash(glab api --method:*)"
   "Bash(~/loop/bin/loop-spec approve:*)" "Bash($HOME/loop/bin/loop-spec approve:*)"
+  "Bash(~/loop/bin/loop-spec part:*)" "Bash($HOME/loop/bin/loop-spec part:*)"
 )
 DESIGNER_ALLOW=(
   "Skill" "Agent" "TodoWrite" "Read" "Grep" "Glob"
@@ -275,6 +284,7 @@ DESIGNER_DENY=(
   "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}" "NotebookEdit"
   "Bash(git push:*)" "Bash(git commit:*)" "Bash(git add:*)" "Bash(git checkout:*)" "Bash(git switch:*)"
   "Bash(~/loop/bin/loop-spec approve:*)" "Bash($HOME/loop/bin/loop-spec approve:*)"
+  "Bash(~/loop/bin/loop-spec part:*)" "Bash($HOME/loop/bin/loop-spec part:*)"
   "Bash(~/loop/bin/loop-spec feedback:*)" "Bash($HOME/loop/bin/loop-spec feedback:*)"
   "mcp__${WORKSPACE_MCP}__transition_task" "mcp__${WORKSPACE_MCP}__start_work"
   "mcp__${WORKSPACE_MCP}__finish_work" "mcp__${WORKSPACE_MCP}__update_work_state"
@@ -285,14 +295,14 @@ DESIGNER_DENY=(
 # The caller sets SESSION_ALLOW and SESSION_DENY first.
 open_session() {
   local name="$1" folder="$2" tab="$3" mode="$4" command="$5" json
-  json=$(LOOP_DIR="$LOOP_DIR" python3 -I - "$name" "$folder" "$tab" "$mode" "$command" <<'PY' "${SESSION_ALLOW[@]}" -- "${SESSION_DENY[@]}"
+  json=$(LOOP_DIR="$LOOP_DIR" SESSION_DIRS="${SESSION_DIRS:-}" python3 -I - "$name" "$folder" "$tab" "$mode" "$command" <<'PY' "${SESSION_ALLOW[@]}" -- "${SESSION_DENY[@]}"
 import json, os, sys
 name, folder, tab, mode, command = sys.argv[1:6]
 rest = sys.argv[6:]
 cut = rest.index("--")
 allow, deny = rest[:cut], rest[cut + 1:]
 argv = ["claude", "--model", "opus", "--effort", "medium", "--permission-mode", mode,
-        "--add-dir", os.environ["LOOP_DIR"],
+        "--add-dir", os.environ["LOOP_DIR"], *filter(None, os.environ["SESSION_DIRS"].split("\n")),
         "--allowedTools", *allow, "--disallowedTools", *deny, "--", command]
 print(json.dumps({"name": name, "folder": folder, "tab": tab, "argv": argv}))
 PY
@@ -320,31 +330,40 @@ memory_is_low() {
 }
 
 start_designer() {
-  local task="$1" repo="$2" risk="${3:-?}" repo_dir base where
-  if ! read -r repo_dir base < <("$STATE" repo "$repo" 2>/dev/null) || [ -z "$base" ]; then
-    log "## $NOW designer skipped — unknown repo '$repo' for $task (add it to $LOOP_DIR/repos)"
-    return
-  fi
+  local task="$1" repos="$2" risk="${3:-?}" repo repo_dir base where first_dir="" other_dirs="" verb
+  SESSION_ALLOW=("${DESIGNER_ALLOW[@]}")
+  for repo in ${repos//,/ }; do
+    if ! read -r repo_dir base < <("$STATE" repo "$repo" 2>/dev/null) || [ -z "$base" ]; then
+      log "## $NOW designer skipped — unknown repo '$repo' for $task (add it to $LOOP_DIR/repos)"
+      return
+    fi
+    git -C "$repo_dir" fetch -q origin "$base" 2>/dev/null
+    if [ -z "$first_dir" ]; then first_dir="$repo_dir"; continue; fi
+    other_dirs="$other_dirs$repo_dir"$'\n'
+    for verb in show diff log status rev-parse ls-files ls-tree grep; do
+      SESSION_ALLOW+=("Bash(git -C $repo_dir $verb:*)")
+    done
+  done
   if memory_is_low; then
     log "## $NOW designer skipped — $task: free memory under 30%"
     return
   fi
-  if ! "$SPEC" start "$task" "$repo" "$risk" 2>/dev/null; then
+  if ! "$SPEC" start "$task" "$repos" "$risk" 2>/dev/null; then
     log "## $NOW designer skipped — $task: design is $("$SPEC" status "$task")"
     return
   fi
-  git -C "$repo_dir" fetch -q origin "$base" 2>/dev/null
   DID=1
-  SESSION_ALLOW=("${DESIGNER_ALLOW[@]}")
   SESSION_DENY=("${DESIGNER_DENY[@]}")
-  if where=$(open_session "design $task" "$repo_dir" "designer" "dontAsk" "/loop-design $task $repo $risk"); then
-    log "## $NOW designer started $task ($repo, risk:$risk) — $where" "package: $("$SPEC" path "$task")" ""
-    notify "Designer เริ่ม $task ($repo, risk:$risk)"
+  SESSION_DIRS="$other_dirs"
+  if where=$(open_session "design $task" "$first_dir" "designer" "dontAsk" "/loop-design $task $repos $risk"); then
+    log "## $NOW designer started $task ($repos, risk:$risk) — $where" "package: $("$SPEC" path "$task")" ""
+    notify "Designer เริ่ม $task ($repos, risk:$risk)"
   else
     "$SPEC" block "$task" "could not open a herdr session"
     log "## $NOW designer FAILED — $task: could not open a herdr session (herdr-app and hc both failed)" ""
     notify "เปิด Designer session ไม่ได้ ($task)"
   fi
+  SESSION_DIRS=""
 }
 
 start_worker() {
@@ -404,11 +423,10 @@ while read -r TASK REPO RISK; do
   STARTED=$((STARTED + 1))
 done <<< "$PICKS"
 
-DESIGNS_STARTED=0
 while read -r TASK REPO RISK; do
   [ -z "$TASK" ] && continue
-  [ "$DESIGNS_STARTED" -ge "$DESIGN_SLOTS" ] && { log "## $NOW designer skipped — $TASK: no free Designer slot"; continue; }
+  [ "$(designing_in "$(space_of "$TASK")")" -ge "$MAX_DESIGNERS" ] && { log "## $NOW designer skipped — $TASK: no free Designer slot in $(space_of "$TASK")"; continue; }
   start_designer "$TASK" "$REPO" "$RISK"
-  DESIGNS_STARTED=$((DESIGNS_STARTED + 1))
+  DESIGNING_KEYS=$("$SPEC" list designing | cut -d' ' -f1)
 done <<< "$DESIGN_PICKS"
 exit 0

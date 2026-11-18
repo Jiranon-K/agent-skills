@@ -1,0 +1,104 @@
+#!/bin/bash
+set -u
+
+LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
+STATE="$LOOP_DIR/bin/loop-state"
+CONFIG="$LOOP_DIR/config.sh"
+[ -f "$CONFIG" ] && . "$CONFIG"
+LABELS="${LOOP_MR_LABELS:-needs:human-verify}"
+
+usage() {
+  cat >&2 <<'USAGE'
+loop-mr opens the Draft MR of a Loop task, or replaces the description of the one its branch already has.
+
+  loop-mr <task> [e2e]
+
+Run it in the task's worktree. It reads $LOOP_DIR/state/mr-body-<task>.md:
+line 1 is "# <MR title>", the rest is the description in this shape:
+
+  ## Summary        one or two sentences and a fenced diagram, tree or diff sketch
+  ## Evidence       **Before:** and **After:** with real output or screenshots
+  ## Merge Danger   **Door:** one-way or two-way, and **Blast Radius:**
+
+"e2e" adds the label needs:e2e. A body that misses a part is refused and nothing is sent.
+USAGE
+  exit 2
+}
+
+die() { echo "loop-mr: $*" >&2; exit 1; }
+line_of() { grep -n -m1 -- "$1" "$BODY" | cut -d: -f1; }
+
+check_body() {
+  local summary evidence danger
+  [ -n "$TITLE" ] || die "$FILE line 1 must be '# <MR title>'"
+  summary=$(line_of '^## Summary$')
+  evidence=$(line_of '^## Evidence$')
+  danger=$(line_of '^## Merge Danger$')
+  [ -n "$summary" ] && [ -n "$evidence" ] && [ -n "$danger" ] \
+    || die "the description needs '## Summary', '## Evidence' and '## Merge Danger'"
+  [ "$summary" -lt "$evidence" ] && [ "$evidence" -lt "$danger" ] \
+    || die "the sections go in the order Summary, Evidence, Merge Danger"
+  sed -n "${summary},${evidence}p" "$BODY" | grep -q '^```' \
+    || die "Summary needs a fenced diagram, tree or diff sketch"
+  sed -n "${evidence},${danger}p" "$BODY" | grep -q '\*\*Before:\*\*' \
+    || die "Evidence needs a '**Before:**' line"
+  sed -n "${evidence},${danger}p" "$BODY" | grep -q '\*\*After:\*\*' \
+    || die "Evidence needs an '**After:**' line"
+  sed -n "${danger},\$p" "$BODY" | grep -q '\*\*Door:\*\* *\(one-way\|two-way\)' \
+    || die "Merge Danger needs '**Door:** one-way' or '**Door:** two-way'"
+  sed -n "${danger},\$p" "$BODY" | grep -q '\*\*Blast Radius:\*\* *[^ ]' \
+    || die "Merge Danger needs '**Blast Radius:** <one word>'"
+}
+
+mr_field() {
+  glab mr view "$BRANCH" "${HOST[@]}" -F json 2>/dev/null | python3 -I -c '
+import json, sys
+try:
+    mr = json.load(sys.stdin)
+except ValueError:
+    sys.exit(1)
+if mr.get("state") != "opened":
+    sys.exit(1)
+value = mr.get(sys.argv[1])
+print(",".join(value) if isinstance(value, list) else value)' "$1"
+}
+
+[ $# -ge 1 ] && [ $# -le 2 ] || usage
+TASK="$1"
+case "$TASK" in ""|*/*|.*) die "bad task key '$TASK'" ;; esac
+[ "${2:-e2e}" = e2e ] || usage
+[ $# -eq 2 ] && LABELS="$LABELS,needs:e2e"
+
+FILE="$LOOP_DIR/state/mr-body-$TASK.md"
+[ -s "$FILE" ] || die "$FILE is missing or empty"
+TITLE=$(sed -n '1s/^# *//p' "$FILE")
+BODY=$(mktemp)
+trap 'rm -f "$BODY"' EXIT
+tail -n +2 "$FILE" | sed '/./,$!d' > "$BODY"
+check_body
+
+REPO=$("$STATE" get "$TASK" repo) || die "$TASK has no loop-state (repo unknown)"
+read -r _ BASE < <("$STATE" repo "$REPO") || die "unknown repo '$REPO'"
+BRANCH=$(git branch --show-current)
+case "$BRANCH" in
+  ""|"$BASE"|main|master|staging|develop|production) die "refusing to open an MR from '${BRANCH:-detached HEAD}'" ;;
+esac
+HOST=()
+HOST_VAR="LOOP_GLAB_REPO_$(echo "$REPO" | tr -c 'A-Za-z0-9\n' '_')"
+[ -n "${!HOST_VAR:-}" ] && HOST=(-R "${!HOST_VAR}")
+
+if IID=$(mr_field iid); then
+  glab mr update "$IID" "${HOST[@]}" --draft --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \
+    || die "could not update MR !$IID"
+else
+  glab mr create "${HOST[@]}" --draft --yes --source-branch "$BRANCH" --target-branch "$BASE" \
+    --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \
+    || die "could not open the MR for $BRANCH"
+fi
+
+[ "$(mr_field draft)" = True ] || die "the MR of $BRANCH is not a Draft"
+SET_LABELS=",$(mr_field labels),"
+for LABEL in ${LABELS//,/ }; do
+  case "$SET_LABELS" in *",$LABEL,"*) ;; *) die "the MR of $BRANCH lacks the label $LABEL" ;; esac
+done
+mr_field web_url

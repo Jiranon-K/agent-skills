@@ -8,3 +8,5 @@ LOOP_TICKET_DAYS=14
 LOOP_LOG_DAYS=60
 LOOP_MR_LABELS="owner:you,needs:human-verify"
 LOOP_GLAB_REPO_project_b_web="git.example.com/project-b/project-b-web"
+LOOP_DEV_web_app="yarn start"
+LOOP_DEV_project_b_web="npm run dev"

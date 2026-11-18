@@ -1,0 +1,82 @@
+#!/bin/bash
+set -u
+
+LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
+STATE="$LOOP_DIR/bin/loop-state"
+CONFIG="$LOOP_DIR/config.sh"
+[ -f "$CONFIG" ] && . "$CONFIG"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+usage() {
+  cat >&2 <<'USAGE'
+loop-preview runs the dev server of a Loop task's branch in its own herdr space,
+so the owner or the task's Worker can check the change in a browser.
+
+  loop-preview <task>
+
+It reads the task's repo and branch from loop-state, recreates the worktree at
+`loop-state path <repo> <task>` when the Worker's slot was freed, links the
+local files with wt-setup, and opens the space "preview <task>" running the
+repo's dev command. The dev command is LOOP_DEV_<repo key> in $LOOP_DIR/config.sh,
+with every character of the key that is not a letter or digit written as "_".
+
+It refuses when free memory is under 30% (FORCE=1 skips that check).
+Close the space to stop the server. /merge-approved removes the worktree.
+USAGE
+  exit 2
+}
+
+die() { echo "loop-preview: $*" >&2; exit 1; }
+
+memory_is_low() {
+  local free
+  free=$(memory_pressure -Q 2>/dev/null | grep -oE '[0-9]+%' | tr -d '%')
+  [ -n "$free" ] && [ "$free" -lt 30 ]
+}
+
+space_is_open() { "$HOME/.local/bin/herdr-core" ls 2>/dev/null | grep -qF "$NAME"; }
+
+ensure_worktree() {
+  [ -d "$WT" ] && return 0
+  git -C "$MAIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null 2>&1 \
+    || git -C "$MAIN" fetch -q origin "$BRANCH:$BRANCH" >/dev/null 2>&1 \
+    || die "branch $BRANCH is neither in $MAIN nor on origin"
+  mkdir -p "$(dirname "$WT")"
+  git -C "$MAIN" worktree add "$WT" "$BRANCH" >/dev/null 2>&1 || die "could not create $WT on $BRANCH"
+  "$HOME/.claude/hooks/wt-setup" "$WT" >/dev/null 2>&1 \
+    || echo "loop-preview: wt-setup failed for $WT (local files not linked)" >&2
+}
+
+open_space() {
+  local json
+  json=$(python3 -I -c 'import json, sys
+print(json.dumps({"name": sys.argv[1], "folder": sys.argv[2], "tab": "preview", "argv": ["/bin/zsh", "-lc", sys.argv[3]]}))' \
+    "$NAME" "$WT" "$DEV")
+  if herdr-app status >/dev/null 2>&1 && herdr-app do space.new "$json" >/dev/null 2>&1; then return 0; fi
+  hc run --bg --name "$(echo "$NAME" | tr '[:upper:] ' '[:lower:]-')" --cwd "$WT" --no-parent -- /bin/zsh -lc "$DEV" >/dev/null 2>&1
+}
+
+[ $# -eq 1 ] || usage
+TASK="$1"
+case "$TASK" in ""|*/*|.*|-*) die "bad task key '$TASK'" ;; esac
+
+REPO=$("$STATE" get "$TASK" repo) || die "$TASK has no loop-state (repo unknown)"
+BRANCH=$("$STATE" get "$TASK" branch)
+[ -n "$BRANCH" ] || die "$TASK has no branch in loop-state"
+read -r MAIN _ < <("$STATE" repo "$REPO") || die "unknown repo '$REPO'"
+DEV_VAR="LOOP_DEV_$(echo "$REPO" | tr -c 'A-Za-z0-9\n' '_')"
+DEV="${!DEV_VAR:-}"
+[ -n "$DEV" ] || die "no dev command for $REPO (set $DEV_VAR in $CONFIG)"
+NAME="preview $TASK"
+WT=$("$STATE" path "$REPO" "$TASK") || die "no worktree path for $TASK"
+
+if space_is_open; then
+  echo "herdr space '$NAME' is already open: $DEV in $WT"
+  exit 0
+fi
+if [ "${FORCE:-0}" != 1 ] && memory_is_low; then
+  die "free memory under 30% (close something, or run it with FORCE=1)"
+fi
+ensure_worktree
+open_space || die "could not open a herdr space (herdr-app and hc both failed)"
+echo "herdr space '$NAME': $DEV in $WT"

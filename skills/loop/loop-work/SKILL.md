@@ -89,6 +89,7 @@ The pstack skills live under `~/loop/pstack/skills/<name>/SKILL.md`. The `Skill`
 **ขั้นตอนต่อไป**
 ☐ 1. <วิธีเช็คด้วยมือ ทำอะไร → ต้องเห็นอะไร>
 ☐ 2. ...
+<เฉพาะงานที่มี UI> เปิดดูใน browser → `~/loop/bin/loop-preview <task>` · เก็บ e2e ลง MR → /loop-e2e <task>
 ผ่าน → สั่ง /merge-approved <task> (เอา Draft ออกให้เอง) · ไม่ผ่าน → ปิด MR แล้วรับงานต่อเอง (หรือสั่ง Loop ให้แก้)
 MR (Draft): <url>
 ```
@@ -96,3 +97,11 @@ MR (Draft): <url>
 ## Final message
 
 After the last `loop-state set` (any outcome), run `~/loop/bin/loop-next` so the runner fills the freed slot. Then end the session with one line: `RESULT: mr-open <url>` | `RESULT: ready-to-ship <branch>` | `RESULT: blocked: <reason>`.
+
+## After the handoff
+
+The session stays open and the owner may ask for more here. The slot worktree is removed at the next run, and this session keeps its denied calls.
+
+- Asked to show the change in a browser: run `~/loop/bin/loop-preview <task>`. It recreates the worktree when the slot is gone and opens the herdr space `preview <task>` running the repo's dev server. Say which URL to open (from the repo's docs) once it answers. Never ask the owner to grant Bash or to type git commands for this.
+- Asked for e2e evidence on the MR: tell the owner to run `/loop-e2e <task>` in a normal session; it needs tools this session is denied.
+- Asked for a code change after the slot is gone: say the worktree was freed and that a new session in the path `loop-preview` printed can take it.

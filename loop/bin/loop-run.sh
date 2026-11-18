@@ -244,6 +244,7 @@ WORKER_ALLOW=(
   "Bash(~/loop/bin/loop-next)" "Bash($HOME/loop/bin/loop-next)"
   "Bash(~/loop/bin/loop-state:*)" "Bash($HOME/loop/bin/loop-state:*)"
   "Bash(~/loop/bin/loop-heavy:*)" "Bash($HOME/loop/bin/loop-heavy:*)"
+  "Bash(~/loop/bin/loop-preview:*)" "Bash($HOME/loop/bin/loop-preview:*)"
   "Bash(~/loop/bin/loop-ask:*)" "Bash($HOME/loop/bin/loop-ask:*)"
   "Bash(~/loop/bin/loop-spec log:*)" "Bash($HOME/loop/bin/loop-spec log:*)"
   "Bash(~/loop/bin/loop-spec path:*)" "Bash($HOME/loop/bin/loop-spec path:*)"

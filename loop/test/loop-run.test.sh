@@ -89,6 +89,8 @@ eq "worker session runs loop-work" "$(session_field "loop EX-2" command)" "/loop
 eq "worker session denies instead of asking" "$(session_field "loop EX-2" mode)" "dontAsk"
 eq "worker session opens in its slot" "$(session_field "loop EX-2" folder)" "$TMP/web-app/.claude/worktrees/loop-1"
 case "$(session_field "loop EX-2" deny)" in *"loop-spec approve"*) ok ;; *) fail "worker may not approve a spec" ;; esac
+case "$(session_field "loop EX-2" allow)" in *"Bash(~/loop/bin/loop-preview:*)"*) ok ;; *) fail "worker may open a preview of its task" ;; esac
+case "$(session_field "design EX-1" allow)" in *"loop-preview"*) fail "designer opens no preview" ;; *) ok ;; esac
 
 eq "designer claims the design" "$(spec status EX-1)" "designing"
 eq "designer session runs loop-design" "$(session_field "design EX-1" command)" "/loop-design EX-1 web-app low"

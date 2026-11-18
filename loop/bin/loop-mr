@@ -51,7 +51,7 @@ check_body() {
 }
 
 mr_field() {
-  glab mr view "$BRANCH" "${HOST[@]}" -F json 2>/dev/null | python3 -I -c '
+  glab mr view "$BRANCH" ${HOST[@]+"${HOST[@]}"} -F json 2>/dev/null | python3 -I -c '
 import json, sys
 try:
     mr = json.load(sys.stdin)
@@ -88,10 +88,10 @@ HOST_VAR="LOOP_GLAB_REPO_$(echo "$REPO" | tr -c 'A-Za-z0-9\n' '_')"
 [ -n "${!HOST_VAR:-}" ] && HOST=(-R "${!HOST_VAR}")
 
 if IID=$(mr_field iid); then
-  glab mr update "$IID" "${HOST[@]}" --draft --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \
+  glab mr update "$IID" ${HOST[@]+"${HOST[@]}"} --draft --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \
     || die "could not update MR !$IID"
 else
-  glab mr create "${HOST[@]}" --draft --yes --source-branch "$BRANCH" --target-branch "$BASE" \
+  glab mr create ${HOST[@]+"${HOST[@]}"} --draft --yes --source-branch "$BRANCH" --target-branch "$BASE" \
     --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \
     || die "could not open the MR for $BRANCH"
 fi

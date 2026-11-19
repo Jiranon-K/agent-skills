@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+import datetime
+import fcntl
+import glob
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+LOOP_DIR = os.environ.get("LOOP_DIR") or os.path.expanduser("~/loop")
+MAP_FILE = os.path.join(LOOP_DIR, "state", "paperclip.json")
+OWNER = "local-board"
+ACCENT = "#C15F3C"
+NEUTRAL = "#B1ADA1"
+
+STATE_STAGES = {
+    "working": ("in_progress", "working"),
+    "blocked": ("blocked", "blocked"),
+    "ready-to-ship": ("in_review", "you:push"),
+    "mr-open": ("in_review", "you:verify-mr"),
+    "merged": ("done", "merged"),
+}
+DESIGN_STAGES = {
+    "approved": ("todo", "wait:worker"),
+    "designing": ("in_progress", "designing"),
+    "proposed": ("in_review", "you:review-design"),
+    "redo": ("todo", "wait:designer"),
+    "blocked": ("blocked", "blocked"),
+    "split": ("backlog", "split"),
+}
+NEXT_STEPS = {
+    "working": 'Worker กำลังทำ เปิดดูด้วย `claude attach "loop {task}"`',
+    "designing": 'Designer กำลังทำ เปิดดูด้วย `claude attach "design {task}"`',
+    "you:review-design": "review design ด้วย `/loop-design-review {task}`",
+    "you:verify-mr": "verify แล้ว merge ด้วย `/merge-approved {task}` (งานที่มี UI และ MR ยังติด `needs:e2e` ให้รัน `/loop-e2e {task}` ก่อน)",
+    "you:push": "repo นี้ agent push ไม่ได้ push branch `{branch}` เอง แล้วรัน `~/loop/bin/loop-mr {task}`",
+    "blocked": "ติดอยู่ อ่านคำถามบน card ใน Workspace แล้วดู runbook หัวข้อ blocked",
+    "wait:worker": "spec approve แล้ว รอ Worker รอบถัดไป หรือรัน `~/loop/bin/loop-next`",
+    "wait:designer": "design ถูกตีกลับ รอ Designer รอบถัดไป หรือรัน `~/loop/bin/loop-next`",
+    "split": "design นี้แตกเป็นใบย่อยแล้ว งานจริงอยู่ที่ใบย่อย",
+    "merged": "merge แล้ว ไม่มีอะไรต้องทำ",
+}
+
+
+def read_config():
+    script = '[ -f "$1" ] && . "$1"; printf "%s\\n%s\\n%s\\n" "${LOOP_PAPERCLIP_URL:-}" "${LOOP_PAPERCLIP_COMPANY:-}" "${LOOP_TASK_URL:-}"'
+    out = subprocess.run(
+        ["bash", "-c", script, "_", os.path.join(LOOP_DIR, "config.sh")],
+        capture_output=True, text=True, check=False,
+    ).stdout.split("\n")
+    return {"url": out[0].rstrip("/"), "company": out[1], "task_url": out[2].rstrip("/")}
+
+
+def lines_of(command):
+    result = subprocess.run(
+        [os.path.join(LOOP_DIR, "bin", command), "list"],
+        capture_output=True, text=True, check=False,
+    )
+    return [line.split() for line in result.stdout.splitlines() if line.strip()]
+
+
+def fields_of(words):
+    return dict(word.split("=", 1) for word in words if "=" in word)
+
+
+def front_matter(path):
+    values = {}
+    try:
+        with open(path, encoding="utf-8") as spec:
+            for line in spec:
+                if line.startswith("# "):
+                    values["title"] = line[2:].strip()
+                    break
+                match = re.match(r"^(repo|risk|status): *(.+)$", line)
+                if match:
+                    values[match.group(1)] = match.group(2).strip()
+    except OSError:
+        return {}
+    return values
+
+
+def collect_tasks():
+    tasks = {}
+    for words in lines_of("loop-spec"):
+        if len(words) < 2 or words[1] not in DESIGN_STAGES:
+            continue
+        tasks[words[0]] = {"stage": DESIGN_STAGES[words[1]], **fields_of(words[2:])}
+    for path in glob.glob(os.path.join(LOOP_DIR, "specs", "*.md")):
+        spec = front_matter(path)
+        task = os.path.basename(path)[:-3]
+        if spec.get("status") == "ready":
+            tasks[task] = {**tasks.get(task, {}), "stage": DESIGN_STAGES["approved"]}
+    for words in lines_of("loop-state"):
+        fields = fields_of(words[1:])
+        if fields.get("status") not in STATE_STAGES:
+            continue
+        tasks[words[0]] = {**tasks.get(words[0], {}), **fields, "stage": STATE_STAGES[fields["status"]]}
+    return tasks
+
+
+def spec_of(task):
+    archived = sorted(glob.glob(os.path.join(LOOP_DIR, "archive", "*", task, task + ".md")))
+    for path in [
+        os.path.join(LOOP_DIR, "specs", task + ".md"),
+        os.path.join(LOOP_DIR, "designs", task, "spec.md"),
+    ] + archived[-1:]:
+        spec = front_matter(path)
+        if spec:
+            return path, spec
+    return "", {}
+
+
+def split_parts(task):
+    try:
+        with open(os.path.join(LOOP_DIR, "designs", task, "split"), encoding="utf-8") as parts:
+            return [line.split() for line in parts if len(line.split()) == 2]
+    except OSError:
+        return []
+
+
+def card_of(task, info, config):
+    status, stage = info["stage"]
+    spec_path, spec = spec_of(task)
+    repo = info.get("repo") or spec.get("repo", "")
+    risk = info.get("risk") or spec.get("risk", "")
+    step = NEXT_STEPS[stage].format(task=task, branch=info.get("branch", ""))
+    body = ["**ต้องทำ:** " + step, ""]
+    if config["task_url"]:
+        body.append("- Workspace: [{0}]({1}/{0})".format(task, config["task_url"]))
+    if info.get("mr"):
+        body.append("- MR: " + info["mr"])
+    if info.get("branch"):
+        body.append("- Branch: `{}`".format(info["branch"]))
+    if repo:
+        body.append("- Repo: `{}`".format(repo))
+    if risk:
+        body.append("- Risk: " + risk)
+    if spec_path:
+        body.append("- Spec: `{}`".format(spec_path.replace(os.path.expanduser("~"), "~", 1)))
+    for part_repo, part_task in split_parts(task) if stage == "split" else []:
+        body.append("- ใบย่อย `{}`: {}".format(part_repo, part_task))
+    labels = [stage] if stage != "merged" else []
+    labels += ["repo:" + key for key in repo.split(",") if key]
+    labels += ["risk:" + risk] if risk else []
+    heading = re.sub(r"^{}[\s:,-]*".format(re.escape(task)), "", spec.get("title", ""))
+    title = "{} {}".format(task, heading).strip()
+    return {"title": title, "description": "\n".join(body), "status": status, "stage": stage, "labels": labels}
+
+
+class Board:
+    def __init__(self, config):
+        self.base = config["url"] + "/api"
+        self.company = config["company"]
+        self.label_ids = {}
+
+    def call(self, method, path, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        request = urllib.request.Request(self.base + path, data=data, method=method)
+        if data is not None:
+            request.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(request, timeout=15) as response:
+            text = response.read().decode()
+        return json.loads(text) if text else None
+
+    def issues(self):
+        return {issue["id"]: issue for issue in self.call("GET", "/companies/{}/issues".format(self.company))}
+
+    def load_labels(self):
+        for label in self.call("GET", "/companies/{}/labels".format(self.company)):
+            self.label_ids[label["name"]] = label["id"]
+
+    def label_id(self, name):
+        if name not in self.label_ids:
+            color = ACCENT if name.startswith("you:") or name == "blocked" else NEUTRAL
+            created = self.call("POST", "/companies/{}/labels".format(self.company), {"name": name, "color": color})
+            self.label_ids[name] = created["id"]
+        return self.label_ids[name]
+
+    def payload(self, card):
+        return {
+            "title": card["title"],
+            "description": card["description"],
+            "status": card["status"],
+            "assigneeUserId": OWNER,
+            "labelIds": sorted(self.label_id(name) for name in card["labels"]),
+        }
+
+    def create(self, card):
+        body = {**self.payload(card), "allowDuplicate": True}
+        return self.call("POST", "/companies/{}/issues".format(self.company), body)["id"]
+
+    def update(self, issue, card, previous_stage):
+        wanted = self.payload(card)
+        current = {**{key: issue.get(key) for key in wanted}, "labelIds": sorted(issue.get("labelIds") or [])}
+        changed = {key: value for key, value in wanted.items() if current.get(key) != value}
+        if previous_stage and previous_stage != card["stage"]:
+            changed["comment"] = "`{}` → `{}`".format(previous_stage, card["stage"])
+        if changed:
+            self.call("PATCH", "/issues/" + issue["id"], changed)
+
+    def delete(self, issue_id):
+        self.call("DELETE", "/issues/" + issue_id)
+
+
+def sync(config):
+    board = Board(config)
+    with open(MAP_FILE, "a+", encoding="utf-8") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        handle.seek(0)
+        mapping = json.loads(handle.read() or "{}")
+        try:
+            existing = board.issues()
+            board.load_labels()
+            tasks = collect_tasks()
+            for task, info in sorted(tasks.items()):
+                card = card_of(task, info, config)
+                known = mapping.get(task, {})
+                issue = existing.get(known.get("id"))
+                if issue:
+                    board.update(issue, card, known.get("stage"))
+                else:
+                    known = {"id": board.create(card)}
+                mapping[task] = {"id": known["id"], "stage": card["stage"]}
+            for task in sorted(set(mapping) - set(tasks)):
+                if mapping[task]["id"] in existing:
+                    board.delete(mapping[task]["id"])
+                del mapping[task]
+        finally:
+            handle.seek(0)
+            handle.truncate()
+            handle.write(json.dumps(mapping, indent=1, sort_keys=True) + "\n")
+
+
+def log_failure(reason):
+    now = datetime.datetime.now()
+    os.makedirs(os.path.join(LOOP_DIR, "logs"), exist_ok=True)
+    with open(os.path.join(LOOP_DIR, "logs", now.strftime("%Y-%m-%d") + ".md"), "a", encoding="utf-8") as log:
+        log.write("## {} paperclip sync failed — {}\n".format(now.strftime("%H:%M"), reason))
+
+
+def main():
+    if sys.argv[1:] != ["sync"]:
+        sys.stderr.write("loop-paperclip sync    mirror every Loop task into Paperclip as one issue (one way)\n")
+        return 2
+    config = read_config()
+    if not config["url"] or not config["company"]:
+        return 0
+    os.makedirs(os.path.dirname(MAP_FILE), exist_ok=True)
+    try:
+        sync(config)
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as error:
+        log_failure(str(error)[:200])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

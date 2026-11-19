@@ -45,8 +45,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.endswith("/issues"):
-            return self.reply(200, list(issues.values()))
-        self.reply(200, list(labels.values()))
+            return self.reply(200, [issue for issue in issues.values() if not issue.get("hiddenAt")])
+        if self.path.endswith("/labels"):
+            return self.reply(200, list(labels.values()))
+        key = self.path.rsplit("/", 1)[1]
+        if key not in issues:
+            return self.reply(404, {"error": "Issue not found"})
+        self.reply(200, issues[key])
 
     def do_POST(self):
         body = self.body()
@@ -133,6 +138,14 @@ key = next(k for k, v in store["issues"].items() if (v["title"] + " ").startswit
 urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:%s/api/issues/%s" % (sys.argv[2], key), data=json.dumps({"status": "done"}).encode(), method="PATCH"))' "$TMP/store.json" "$PORT"
 sync
 eq "a card moved by hand is put back" "$(card EX-2 status)" "in_review"
+
+python3 -I -c 'import json, sys, urllib.request
+store = json.load(open(sys.argv[1]))
+key = next(k for k, v in store["issues"].items() if (v["title"] + " ").startswith("EX-2 "))
+urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:%s/api/issues/%s" % (sys.argv[2], key), data=json.dumps({"hiddenAt": "2026-01-01T00:00:00Z"}).encode(), method="PATCH"))' "$TMP/store.json" "$PORT"
+sync
+eq "a card hidden by hand is shown again" "$(python3 -I -c 'import json, sys; print([v.get("hiddenAt") for v in json.load(open(sys.argv[1]))["issues"].values() if (v["title"] + " ").startswith("EX-2 ")])' "$TMP/store.json")" "[None]"
+eq "a hidden card is not created twice" "$(count)" "2"
 
 state set EX-2 merged
 mkdir -p "$LOOP/archive/2026-01/EX-2"

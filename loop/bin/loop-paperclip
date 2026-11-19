@@ -201,6 +201,17 @@ class Board:
         if changed:
             self.call("PATCH", "/issues/" + issue["id"], changed)
 
+    def unhide(self, issue_id):
+        try:
+            issue = self.call("GET", "/issues/" + issue_id)
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                return None
+            raise
+        if not issue.get("hiddenAt"):
+            return None
+        return self.call("PATCH", "/issues/" + issue_id, {"hiddenAt": None})
+
     def delete(self, issue_id):
         self.call("DELETE", "/issues/" + issue_id)
 
@@ -218,7 +229,7 @@ def sync(config):
             for task, info in sorted(tasks.items()):
                 card = card_of(task, info, config)
                 known = mapping.get(task, {})
-                issue = existing.get(known.get("id"))
+                issue = existing.get(known.get("id")) or (board.unhide(known["id"]) if known else None)
                 if issue:
                     board.update(issue, card, known.get("stage"))
                 else:

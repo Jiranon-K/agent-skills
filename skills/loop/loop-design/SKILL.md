@@ -1,6 +1,6 @@
 ---
 name: loop-design
-description: Designer of the Loop Engineering system. Runs in its own herdr session in a repo's main checkout, read-only, and turns one agent-routed Workspace task into a design package (a proposed spec plus an architect sketch chosen from competing candidates) for the owner to review. Started by ~/loop/bin/loop-run.sh; usage `/loop-design <task key> <repo key> <risk>`.
+description: Designer of the Loop Engineering system. Runs in its own Claude Code background session in a repo's main checkout, read-only, and turns one agent-routed Workspace task into a design package (a proposed spec plus an architect sketch chosen from competing candidates) for the owner to review. Started by ~/loop/bin/loop-run.sh; usage `/loop-design <task key> <repo key> <risk>`.
 ---
 
 # Loop Designer

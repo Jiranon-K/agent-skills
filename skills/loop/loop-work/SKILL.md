@@ -1,6 +1,6 @@
 ---
 name: loop-work
-description: Worker of the Loop Engineering system. Runs in its own herdr session inside a prepared git worktree, takes one Workspace task end to end — claim, implement against the approved design with Sonnet subagents, verify, review by findings that a run proves, fix, Draft MR with evidence, handoff comment — and records state with loop-state. Started by ~/loop/bin/loop-run.sh; usage `/loop-work <task key> <repo key> <risk>`.
+description: Worker of the Loop Engineering system. Runs in its own Claude Code background session inside a prepared git worktree, takes one Workspace task end to end — claim, implement against the approved design with Sonnet subagents, verify, review by findings that a run proves, fix, Draft MR with evidence, handoff comment — and records state with loop-state. Started by ~/loop/bin/loop-run.sh; usage `/loop-work <task key> <repo key> <risk>`.
 ---
 
 # Loop Worker
@@ -102,6 +102,6 @@ After the last `loop-state set` (any outcome), run `~/loop/bin/loop-next` so the
 
 The session stays open and the owner may ask for more here. The slot worktree is removed at the next run, and this session keeps its denied calls.
 
-- Asked to show the change in a browser: run `~/loop/bin/loop-preview here <task>` as a background command of this session. It recreates the worktree when the slot is gone and runs the repo's dev server inside this session, with no herdr space. Say which URL to open (from the repo's docs) once it answers, and stop it with `~/loop/bin/loop-preview stop <task>` when the owner is done. Never ask the owner to grant Bash or to type git commands for this.
+- Asked to show the change in a browser: run `~/loop/bin/loop-preview here <task>` as a background command of this session. It recreates the worktree when the slot is gone and runs the repo's dev server inside this session. Say which URL to open (from the repo's docs) once it answers, and stop it with `~/loop/bin/loop-preview stop <task>` when the owner is done. Never ask the owner to grant Bash or to type git commands for this.
 - Asked for e2e evidence on the MR: the owner runs `/loop-e2e <task>` here and you follow it. Claude in Chrome is allowed for that request only: never open the browser on your own, during the task or after it.
 - Asked for a code change after the slot is gone: say the worktree was freed and that a new session in the path `loop-preview` printed can take it.

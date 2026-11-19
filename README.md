@@ -55,7 +55,7 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 | design | `ui-ux-pro-max` | Searchable styles, palettes, fonts, UX rules |
 | personal | `ui-inspire` | Researches UI patterns, then designs an original UI |
 | personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
-| loop | `loop-triage`, `loop-design`, `loop-work`, `loop-review` | Coordinator, designer (architect sketch and proposed spec), worker (one herdr session per task) and reviewer |
+| loop | `loop-triage`, `loop-design`, `loop-work`, `loop-review` | Coordinator, designer (architect sketch and proposed spec), worker (one Claude Code background session per task) and reviewer |
 | loop | `loop-summary` | Shows summaries since last run |
 | loop | `loop-board`, `loop-explain` | Read-only views: every task by stage (box art in chat), and one task explained from its record |
 | loop | `loop-design-review`, `merge-approved`, `loop-e2e` | Human gates: approve the design, merge the MR, browser e2e by hand when the Worker could not run it |
@@ -109,7 +109,7 @@ For [herdr](https://herdr.dev): `brew install herdr`, `herdr integration install
 
 ## Loop Engineering
 
-<p align="center"><img src="docs/assets/loop.svg" alt="Loop Engineering: at 09:15 launchd runs loop-triage, then opens one herdr session per picked task running loop-work with an independent loop-reviewer; at 09:30 loop-summary; then you verify the Draft MR and run loop-e2e and merge-approved" width="100%"></p>
+<p align="center"><img src="docs/assets/loop.svg" alt="Loop Engineering: at 09:15 launchd runs loop-triage, then opens one Claude Code background session per picked task running loop-work with an independent loop-reviewer; at 09:30 loop-summary; then you verify the Draft MR and run loop-e2e and merge-approved" width="100%"></p>
 
 Logs, state and summaries stay in `~/loop` and are not committed. To schedule it, copy `loop/launchd/com.example.loop.plist` to `~/Library/LaunchAgents/`, fix its paths, then:
 

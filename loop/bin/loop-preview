@@ -12,8 +12,8 @@ usage() {
 loop-preview runs the dev server of a Loop task's branch, so the owner or the
 task's Worker can check the change in a browser.
 
-  loop-preview <task>         in its own herdr space "preview <task>"
-  loop-preview here <task>    in this terminal, in the foreground, with no herdr space
+  loop-preview <task>         detached, in the background, logging to state/preview-<task>.log
+  loop-preview here <task>    in this terminal, in the foreground
   loop-preview stop <task>    stop either one
 
 It reads the task's repo and branch from loop-state, recreates the worktree at
@@ -36,8 +36,6 @@ memory_is_low() {
   [ -n "$free" ] && [ "$free" -lt 30 ]
 }
 
-space_is_open() { "$HOME/.local/bin/herdr-core" ls 2>/dev/null | grep -qF "$NAME"; }
-
 ensure_worktree() {
   [ -d "$WT" ] && return 0
   git -C "$MAIN" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null 2>&1 \
@@ -49,28 +47,13 @@ ensure_worktree() {
     || echo "loop-preview: wt-setup failed for $WT (local files not linked)" >&2
 }
 
-open_space() {
-  local json
-  json=$(python3 -I -c 'import json, sys
-print(json.dumps({"name": sys.argv[1], "folder": sys.argv[2], "tab": "preview", "argv": ["/bin/zsh", "-lc", sys.argv[3]]}))' \
-    "$NAME" "$WT" "$DEV")
-  if herdr-app status >/dev/null 2>&1 && herdr-app do space.new "$json" >/dev/null 2>&1; then return 0; fi
-  hc run --bg --name "$BACKGROUND_NAME" --cwd "$WT" --no-parent -- /bin/zsh -lc "$DEV" >/dev/null 2>&1
-}
-
-close_space() {
-  local id
-  id=$(herdr-app ls 2>/dev/null | python3 -I -c 'import json, sys
-try:
-    spaces = json.load(sys.stdin).get("spaces", [])
-except ValueError:
-    spaces = []
-print(next((space["id"] for space in spaces if space.get("name") == sys.argv[1]), ""))' "$NAME")
-  if [ -n "$id" ]; then
-    herdr-app do space.close "$(python3 -I -c 'import json, sys
-print(json.dumps({"id": sys.argv[1], "confirmed": True}))' "$id")" >/dev/null 2>&1 && return 0
-  fi
-  hc kill "$BACKGROUND_NAME" >/dev/null 2>&1
+start_detached() {
+  FORCE=1 nohup "$0" here "$TASK" > "$LOG_FILE" 2>&1 < /dev/null &
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    server_pid >/dev/null && return 0
+    sleep 0.5
+  done
+  return 1
 }
 
 server_pid() {
@@ -87,19 +70,14 @@ kill_tree() {
 }
 
 stop_preview() {
-  local pid stopped=0
-  if pid=$(server_pid); then
-    kill_tree "$pid"
-    rm -f "$PID_FILE"
-    echo "dev server of $TASK stopped"
-    stopped=1
+  local pid
+  if ! pid=$(server_pid); then
+    echo "no preview of $TASK is running"
+    exit 0
   fi
-  if space_is_open; then
-    close_space || die "could not close the herdr space '$NAME'"
-    echo "herdr space '$NAME' closed"
-    stopped=1
-  fi
-  [ "$stopped" = 1 ] || echo "no preview of $TASK is running"
+  kill_tree "$pid"
+  rm -f "$PID_FILE" "$LOG_FILE"
+  echo "dev server of $TASK stopped"
   exit 0
 }
 
@@ -110,14 +88,13 @@ run_here() {
   exec /bin/zsh -lc "$DEV"
 }
 
-ACTION=space
+ACTION=detached
 case "${1:-}" in here|stop) ACTION="$1"; shift ;; esac
 [ $# -eq 1 ] || usage
 TASK="$1"
 case "$TASK" in ""|*/*|.*|-*) die "bad task key '$TASK'" ;; esac
-NAME="preview $TASK"
-BACKGROUND_NAME=$(echo "$NAME" | tr '[:upper:] ' '[:lower:]-')
 PID_FILE="$LOOP_DIR/state/preview-$TASK.pid"
+LOG_FILE="$LOOP_DIR/state/preview-$TASK.log"
 [ "$ACTION" = stop ] && stop_preview
 
 REPO=$("$STATE" get "$TASK" repo) || die "$TASK has no loop-state (repo unknown)"
@@ -133,14 +110,11 @@ if server_pid >/dev/null; then
   echo "dev server of $TASK is already running: $DEV in $WT"
   exit 0
 fi
-if space_is_open; then
-  echo "herdr space '$NAME' is already open: $DEV in $WT"
-  exit 0
-fi
 if [ "${FORCE:-0}" != 1 ] && memory_is_low; then
   die "free memory under 30% (close something, or run it with FORCE=1)"
 fi
 ensure_worktree
 [ "$ACTION" = here ] && run_here
-open_space || die "could not open a herdr space (herdr-app and hc both failed)"
-echo "herdr space '$NAME': $DEV in $WT"
+mkdir -p "$(dirname "$PID_FILE")"
+start_detached || die "the dev server did not start (see $LOG_FILE)"
+echo "dev server of $TASK started: $DEV in $WT (log: $LOG_FILE)"

@@ -37,14 +37,19 @@ printf -- '---\ntask: EX-2\nstatus: ready\n---\n' > "$LOOP/specs/EX-2.md"
 fake() { printf '#!/bin/bash\n%s\n' "$2" > "$BIN/$1"; chmod +x "$BIN/$1"; }
 fake osascript 'exit 0'
 fake curl 'exit 0'
-fake hc 'exit 1'
 fake memory_pressure 'echo "System-wide memory free percentage: 80%"'
-fake herdr-core 'cat "$HOME/spaces.json" 2>/dev/null'
-fake herdr-app 'case "$1" in status) exit 0 ;; do) printf "%s\n" "$3" >> "$HOME/spaces.json" ;; esac'
 fake claude 'case "$*" in
   *"/loop-triage"*)
     printf "%s\n" "$*" > "$HOME/triage-prompt.txt"
-    printf "NOTIFY: picked\nPICK: EX-2 web-app medium\nDESIGN: EX-1 web-app low\nDESIGN: EX-5 web-app low\nDESIGN: OT-1 web-app,api high\nCLOSED: EX-9\n### report\n" ;;
+    printf "NOTIFY: picked\nPICK: EX-2 web-app medium\nDESIGN: EX-1 web-app low\nDESIGN: EX-5 web-app low\nDESIGN: OT-1 web-app,api high\nDESIGN: UT-1 api low\nCLOSED: EX-9\n### report\n" ;;
+  "--bg "*)
+    if [ "$PWD" = "$(cat "$HOME/untrusted")" ]; then
+      echo "Workspace not trusted. Run claude in $PWD once and accept the trust prompt, then retry."
+      exit 1
+    fi
+    python3 -I -c "import json, sys; print(json.dumps({\"folder\": sys.argv[1], \"argv\": sys.argv[2:]}))" "$PWD" "$@" >> "$HOME/sessions.json"
+    echo "Starting background service…"
+    echo "backgrounded · abc12345 · $3" ;;
   *) echo "summary" ;;
 esac'
 
@@ -54,21 +59,22 @@ state() { LOOP_DIR="$LOOP" "$LOOP/bin/loop-state" "$@"; }
 session_field() {
   python3 -I -c 'import json,sys
 for line in open(sys.argv[1]):
-    space = json.loads(line)
-    if space["name"] == sys.argv[2]:
-        argv = space["argv"]
-        print({"command": argv[-1], "mode": argv[argv.index("--permission-mode") + 1], "folder": space["folder"],
+    session = json.loads(line)
+    argv = session["argv"]
+    if argv[argv.index("-n") + 1] == sys.argv[2]:
+        print({"command": argv[-1], "mode": argv[argv.index("--permission-mode") + 1], "folder": session["folder"],
                "adddir": argv[argv.index("--add-dir") + 1],
                "dirs": " ".join(argv[argv.index("--add-dir") + 1:argv.index("--allowedTools")]),
                "deny": " ".join(argv[argv.index("--disallowedTools") + 1:argv.index("--")]),
                "allow": " ".join(argv[argv.index("--allowedTools") + 1:argv.index("--disallowedTools")])}[sys.argv[3]])' \
-    "$FAKE_HOME/spaces.json" "$1" "$2"
+    "$FAKE_HOME/sessions.json" "$1" "$2"
 }
 
 printf -- '---\ntask: EX-9\nstatus: ready\n---\n' > "$LOOP/specs/EX-9.md"
 printf -- '---\ntask: EX-8\nstatus: ready\n---\n' > "$LOOP/specs/EX-8.md"
 state set EX-8 merged repo=web-app
 
+printf '%s' "$TMP/api" > "$FAKE_HOME/untrusted"
 run_loop
 LOG=$(ls "$LOOP"/logs/*.md | grep -v launchd | head -n 1)
 
@@ -103,7 +109,7 @@ eq "designer session opens in the main checkout" "$(session_field "design EX-1" 
 case "$(session_field "design EX-1" deny)" in *"loop-spec approve"*"git commit"*|*"git commit"*"loop-spec approve"*) ok ;; *) fail "designer may not approve or commit" ;; esac
 case "$(session_field "design EX-1" allow)" in *"Write(~/loop/designs/**)"*) ok ;; *) fail "designer writes only its package" ;; esac
 case "$(session_field "design EX-1" allow)" in *"Edit "*|*" Write "*) fail "designer has no blanket edit" ;; *) ok ;; esac
-has "the run is logged" "$LOG" "designer started EX-1 (web-app, risk:low)"
+has "the run is logged" "$LOG" "designer started EX-1 (web-app, risk:low) — background session 'design EX-1' (claude attach abc12345)"
 lacks "the report keeps no DESIGN line" "$LOOP/state/last-triage.md" "DESIGN:"
 
 eq "a second task of the same space waits" "$(spec status EX-5)" "none"
@@ -116,11 +122,14 @@ case "$(session_field "design OT-1" allow)" in *"Bash(git -C $TMP/api show:*)"*)
 case "$(session_field "design EX-1" allow)" in *"git -C"*) fail "a one-repo designer gets no git -C rule" ;; *) ok ;; esac
 case "$(session_field "design OT-1" deny)" in *"loop-spec part"*) ok ;; *) fail "designer may not hand out a part" ;; esac
 
+eq "a session that cannot open blocks its design" "$(spec status UT-1)" "blocked"
+has "the reason claude gave is logged" "$LOG" "designer FAILED — UT-1: could not open a background session: Workspace not trusted."
+
 run_loop
 has "a second run names the full spaces" "$FAKE_HOME/triage-prompt.txt" "Spaces with no free Designer slot: EX OT"
 has "a second run lists the design" "$FAKE_HOME/triage-prompt.txt" "- EX-1 designing repo=web-app risk=low"
 has "a busy Designer is not doubled" "$LOG" "designer skipped — EX-1: no free Designer slot in EX"
-eq "one designer session only" "$(grep -c '"design EX-1"' "$FAKE_HOME/spaces.json")" "1"
+eq "one designer session only" "$(grep -c '"design EX-1"' "$FAKE_HOME/sessions.json")" "1"
 
 echo "pass $PASS fail $FAIL"
 [ "$FAIL" -eq 0 ]

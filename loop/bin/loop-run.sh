@@ -1,7 +1,7 @@
 #!/bin/bash
 # Loop Engineering runner. launchd (com.example.loop) calls this daily at 9:15.
 # One run: Coordinator (triage + route + pick, headless) → for each picked task, while Worker slots are free:
-#   prepare a worktree and open a visible herdr session running `/loop-work <task> <repo> <risk>`.
+#   prepare a worktree and open a Claude Code background session (claude --bg) running `/loop-work <task> <repo> <risk>`.
 #   The Worker session claims the task, builds, gets an independent review, opens a Draft MR and records loop-state itself,
 #   then calls loop-next so a freed slot is filled the same day. Worktrees live in fixed slots (.claude/worktrees/loop-<n>)
 #   so Claude asks folder trust once per slot.
@@ -76,7 +76,7 @@ summarize() {
 
 👉 ต้องทำ
 1. <action สั้น> → [เปิด](<ลิงก์>)
-(เฉพาะเรื่องใหม่รอบนี้: ดู Worker session ใน herdr, ไปถามข้อมูลของ task ที่เพิ่งติด needs:human ห้ามยกคำถามเก่าที่ยังไม่ได้คำตอบมาซ้ำ ถ้าไม่มีให้เขียน \"ไม่มี\" แทนรายการ)
+(เฉพาะเรื่องใหม่รอบนี้: ดู Worker session ด้วย claude attach, ไปถามข้อมูลของ task ที่เพิ่งติด needs:human ห้ามยกคำถามเก่าที่ยังไม่ได้คำตอบมาซ้ำ ถ้าไม่มีให้เขียน \"ไม่มี\" แทนรายการ)
 
 ถ้ารันพัง ให้บรรทัด ✅ เป็น \"รันไม่สำเร็จ: <สาเหตุสั้น>\" และ 👉 เป็นสิ่งที่ควรเช็ค
 
@@ -294,36 +294,20 @@ DESIGNER_DENY=(
   "mcp__${WORKSPACE_MCP}__add_task_link"
 )
 
-# Opens a visible session: a herdr space when the window is up, else a background herdr-core terminal.
+# Opens a Claude Code background session in $folder; `claude agents` lists it and `claude attach` opens it.
 # The caller sets SESSION_ALLOW and SESSION_DENY first.
 open_session() {
-  local name="$1" folder="$2" tab="$3" mode="$4" command="$5" json
-  json=$(LOOP_DIR="$LOOP_DIR" SESSION_DIRS="${SESSION_DIRS:-}" python3 -I - "$name" "$folder" "$tab" "$mode" "$command" <<'PY' "${SESSION_ALLOW[@]}" -- "${SESSION_DENY[@]}"
-import json, os, sys
-name, folder, tab, mode, command = sys.argv[1:6]
-rest = sys.argv[6:]
-cut = rest.index("--")
-allow, deny = rest[:cut], rest[cut + 1:]
-argv = ["claude", "--model", "opus", "--effort", "medium", "--permission-mode", mode,
-        "--add-dir", os.environ["LOOP_DIR"], *filter(None, os.environ["SESSION_DIRS"].split("\n")),
-        "--allowedTools", *allow, "--disallowedTools", *deny, "--", command]
-print(json.dumps({"name": name, "folder": folder, "tab": tab, "argv": argv}))
-PY
-)
-  if herdr-app status >/dev/null 2>&1 && herdr-app do space.new "$json" >/dev/null 2>&1; then
-    sleep 3
-    if "$HOME/.local/bin/herdr-core" ls 2>/dev/null | grep -q "$name"; then
-      echo "herdr space '$name'"
-    else
-      echo "herdr space '$name' (not yet listed by herdr-core ls: check the app)"
-    fi
-    return 0
+  local name="$1" folder="$2" mode="$3" command="$4" dirs=("$LOOP_DIR") line out id
+  while IFS= read -r line; do [ -n "$line" ] && dirs+=("$line"); done <<< "${SESSION_DIRS:-}"
+  out=$(cd "$folder" && claude --bg -n "$name" --model opus --effort medium --permission-mode "$mode" \
+    --add-dir "${dirs[@]}" --allowedTools "${SESSION_ALLOW[@]}" --disallowedTools "${SESSION_DENY[@]}" \
+    -- "$command" < /dev/null 2>&1)
+  id=$(printf '%s\n' "$out" | sed -n 's/^backgrounded · \([^ ]*\) · .*/\1/p' | head -n 1)
+  if [ -z "$id" ]; then
+    printf '%s\n' "$out" | grep . | tail -n 1
+    return 1
   fi
-  local argv=()
-  while IFS= read -r line; do argv+=("$line"); done < <(printf '%s' "$json" | python3 -I -c 'import json,sys; print("\n".join(json.load(sys.stdin)["argv"]))')
-  hc run --bg --name "$(echo "$name" | tr '[:upper:] ' '[:lower:]-')" --cwd "$folder" --no-parent -- "${argv[@]}" >/dev/null 2>&1 \
-    && { echo "herdr-core terminal $name (open the herdr app to see it)"; return 0; }
-  return 1
+  echo "background session '$name' (claude attach $id)"
 }
 
 memory_is_low() {
@@ -358,12 +342,12 @@ start_designer() {
   DID=1
   SESSION_DENY=("${DESIGNER_DENY[@]}")
   SESSION_DIRS="$other_dirs"
-  if where=$(open_session "design $task" "$first_dir" "designer" "dontAsk" "/loop-design $task $repos $risk"); then
+  if where=$(open_session "design $task" "$first_dir" "dontAsk" "/loop-design $task $repos $risk"); then
     log "## $NOW designer started $task ($repos, risk:$risk) — $where" "package: $("$SPEC" path "$task")" ""
     notify "Designer เริ่ม $task ($repos, risk:$risk)"
   else
-    "$SPEC" block "$task" "could not open a herdr session"
-    log "## $NOW designer FAILED — $task: could not open a herdr session (herdr-app and hc both failed)" ""
+    "$SPEC" block "$task" "could not open a background session: $where"
+    log "## $NOW designer FAILED — $task: could not open a background session: $where" ""
     notify "เปิด Designer session ไม่ได้ ($task)"
   fi
   SESSION_DIRS=""
@@ -407,12 +391,12 @@ start_worker() {
   DID=1
   SESSION_ALLOW=("${WORKER_ALLOW[@]}")
   SESSION_DENY=("${WORKER_DENY[@]}")
-  if where=$(open_session "loop $task" "$wt" "worker" "dontAsk" "/loop-work $task $repo $risk"); then
+  if where=$(open_session "loop $task" "$wt" "dontAsk" "/loop-work $task $repo $risk"); then
     log "## $NOW worker started $task ($repo, risk:$risk) — $where" "worktree: $wt" ""
     notify "Worker เริ่ม $task ($repo, risk:$risk)"
   else
     "$STATE" set "$task" blocked
-    log "## $NOW worker FAILED — $task: could not open a herdr session (herdr-app and hc both failed)" ""
+    log "## $NOW worker FAILED — $task: could not open a background session: $where" ""
     notify "เปิด Worker session ไม่ได้ ($task)"
   fi
 }

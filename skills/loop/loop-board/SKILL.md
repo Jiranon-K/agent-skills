@@ -18,7 +18,7 @@ Run these in one message:
 - `~/loop/bin/loop-state list` → `<task> status=… repo=… [branch=…] [mr=…] [ui=…]`
 - `~/loop/bin/loop-spec list` → `<task> <design status> repo=… risk=…`
 - The table under `### ต้อง grill ก่อน Agent เริ่มได้` in `~/loop/state/last-triage.md` (its task cells are links already; keep them). "ไม่มี" means none.
-- `~/.local/bin/herdr-core ls` → JSON; each terminal's `where` is `<role> <task> / <tab>` (`loop` = Worker, `design` = Designer, `e2e`), with `agent` and `status`.
+- `claude agents --json` → a JSON array of live sessions; a session's `name` is `<role> <task>` (`loop` = Worker, `design` = Designer), with `id`, `status` and `state`.
 - The task URL base, the "Current sprint" table and the list "Out-of-sprint tasks the owner asked for" in `~/loop/workspace.md`. Link a card as `<base>/tasks/<KEY>`.
 - Per space in that table: `query_view` `space=<key>`, `sprint=<id>`, `assignee=me`, `view_type=table`, `group=none`. The keys it returns, plus the owner's list, are the sprint keys. The same call with `open=true` added gives the open sprint tasks; keep each one's `status` and `route`. A failed call means the board cannot be filtered: say so in one line above the board and show every task.
 
@@ -48,7 +48,7 @@ Stage 8 sub-state, in the card's `note`, from the MR:
 - label `needs:e2e` → `รอ e2e` and next `/loop-e2e <task>`.
 - otherwise label `needs:human-verify` → `รอ human verify` and next `/merge-approved <task>`.
 
-herdr never decides a stage. A live terminal whose `where` names the task becomes the card's `session`: `<role> <status>` (`worker done`, `designer working`), or `<role> shell` when `agent` is not `claude-code`.
+A session never decides a stage. A live session whose `name` names the task becomes the card's `session`: `<role> <state>` (`worker done`), opened with `claude attach <id>`.
 
 ## 3. Find disagreements
 

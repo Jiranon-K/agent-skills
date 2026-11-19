@@ -38,6 +38,12 @@ One task key per line. Only the owner adds a key here, and removes it when the t
 
 - none
 
+## Creating and listing tasks
+
+- `create_task` needs `status_id`, unless `triage` is true. With no space, the status must be a global one.
+- A parent set through `create_task` or `update_task` must be an Epic in the same space. A subtask of a normal task is made with `add_subtask`.
+- `list_tasks` takes `done` as `recent`, `hide` or `all`.
+
 ## Labels the loop writes
 
 - `risk:low|medium|high`, and `type:<x>` only when the task has no `type:` label yet (APP uses `type:story`, `type:bug`, `type:feature`, `type:chore`, `type:docs`, `type:test`).

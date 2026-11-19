@@ -1,0 +1,66 @@
+#!/bin/bash
+set -u
+
+LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
+STATE="$LOOP_DIR/bin/loop-state"
+CONFIG="$LOOP_DIR/config.sh"
+[ -f "$CONFIG" ] && . "$CONFIG"
+
+usage() {
+  cat >&2 <<'USAGE'
+loop-upload sends images to the GitLab project of a Loop task and prints one markdown image line per file.
+
+  loop-upload <task> <image>...
+
+It reads the repo from loop-state, so it runs from any folder. Paste the printed lines into the MR
+description or an MR note. "glab api -F file=@..." cannot send a file as multipart (HTTP 400), so
+this is the only way to upload.
+USAGE
+  exit 2
+}
+
+die() { echo "loop-upload: $*" >&2; exit 1; }
+
+resolve_project() {
+  local repo checkout target var origin
+  repo=$("$STATE" get "$TASK" repo) || die "$TASK has no loop-state (repo unknown)"
+  read -r checkout _ < <("$STATE" repo "$repo") || die "unknown repo '$repo'"
+  var="LOOP_GLAB_REPO_$(echo "$repo" | tr -c 'A-Za-z0-9\n' '_')"
+  target="${!var:-}"
+  if [ -z "$target" ]; then
+    origin=$(git -C "$checkout" remote get-url origin 2>/dev/null) || die "$checkout has no origin remote"
+    target=$(echo "$origin" | sed -E 's#^(ssh://|https://)?([^@/]*@)?##; s#:[0-9]+/#/#; s#:#/#; s#\.git$##')
+  fi
+  HOST="${target%%/*}"
+  PROJECT="${target#*/}"
+  [ -n "$HOST" ] && [ "$PROJECT" != "$target" ] || die "cannot read host and project from '$target'"
+}
+
+upload() {
+  local file="$1" response
+  [ -f "$file" ] || die "$file is not a file"
+  case "$file" in *[\;,\"]*) die "$file: rename it, the name may not hold ; , or \"" ;; esac
+  response=$(printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" \
+    | curl -sS -K - --form "file=@$file" "https://$HOST/api/v4/projects/${PROJECT//\//%2F}/uploads") \
+    || die "could not reach $HOST for $file"
+  printf '%s' "$response" | python3 -I -c '
+import json, sys
+try:
+    markdown = json.load(sys.stdin)["markdown"]
+except (ValueError, KeyError, TypeError):
+    sys.exit(1)
+print(markdown)' || die "$HOST refused $file: $response"
+}
+
+[ $# -ge 2 ] || usage
+TASK="$1"
+shift
+case "$TASK" in ""|*/*|.*) die "bad task key '$TASK'" ;; esac
+
+resolve_project
+TOKEN=$(glab config get token --host "$HOST" 2>/dev/null)
+[ -n "$TOKEN" ] || die "glab has no token for $HOST"
+
+for FILE in "$@"; do
+  upload "$FILE"
+done

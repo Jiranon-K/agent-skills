@@ -235,6 +235,7 @@ WORKER_ALLOW=(
   "Bash(git commit:*)" "Bash(git branch:*)" "Bash(git rev-parse:*)" "Bash(git fetch:*)" "Bash(git rev-list:*)"
   "Bash(~/loop/bin/loop-push)" "Bash($HOME/loop/bin/loop-push)"
   "Bash(~/loop/bin/loop-mr:*)" "Bash($HOME/loop/bin/loop-mr:*)"
+  "Bash(~/loop/bin/loop-upload:*)" "Bash($HOME/loop/bin/loop-upload:*)"
   "Bash(yarn:*)" "Bash(npm:*)" "Bash(npx:*)" "Bash(node:*)" "Bash(bun:*)" "Bash(go:*)" "Bash(make:*)"
   "Bash(uv:*)" "Bash(python3:*)" "Bash(./init.sh:*)" "Bash(./scripts/:*)" "Bash(.harness/scripts/:*)"
   "Bash(glab mr view:*)" "Bash(glab mr note:*)"
@@ -255,6 +256,7 @@ WORKER_ALLOW=(
   "mcp__${WORKSPACE_MCP}__finish_work" "mcp__${WORKSPACE_MCP}__transition_task"
   "mcp__${WORKSPACE_MCP}__add_task_link" "mcp__${WORKSPACE_MCP}__add_comment"
   "mcp__${WORKSPACE_MCP}__update_task"
+  "mcp__claude-in-chrome"
 )
 WORKER_DENY=(
   "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}"

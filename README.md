@@ -32,7 +32,7 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 | :--- | :--- | :--- |
 | **[skills/](skills)** | 22 | engineering, productivity, design, loop, personal |
 | **[claude/agents/](claude/agents)** | 53 | subagents grouped by category |
-| **[claude/rules/](claude/rules)** | 5 | code style, testing, self-improvement, pstack in Thai, pstack models |
+| **[claude/rules/](claude/rules)** | 8 | code style, testing, self-improvement, explanation style, worktree commands, pstack in Thai, pstack models, pstack cross-vendor seat |
 | **[plugins.md](plugins.md)** | 9 | installed with `claude plugin`, not copied |
 | **[loop/](loop)** | — | Loop Engineering runner and launchd job |
 | **[scheduled/](scheduled)** | 3 | daily-standup, loop-summary, loop-reflect |

@@ -30,7 +30,7 @@ argument-hint: [ticket or focus area]
    - **State checklist** per changed screen: ideal, empty, loading, partial, error, disabled, success, validation.
    - Proportional: a copy change gets 2-3 cases.
 3. **Run.** Start the dev server the repo's documented way, in the background. Per scenario: clean start (reload, reset data it created), do the steps, wait until the expected element shows, screenshot before/after each state change as `S<NN>_<step>_<before|after>_<state>.png`, check the console. Bugs found → record repro steps and continue; don't fix unless asked.
-4. **Report**: send the screenshots to the user, then the table below, failures first. Result is PASS, FAIL, BLOCKED or MOCKED-PASS.
+4. **Report**: publish one Artifact page when the Artifact tool is there, otherwise send the same in chat. One section per scenario the user meets, failures first: its before and after screenshots side by side, one line on what the user sees differently, and why the behaviour changed, cited from the commit or the ticket. Then the table below. Result is PASS, FAIL, BLOCKED or MOCKED-PASS.
 5. **Clean up**: stop the dev server, close your tabs, confirm with `ps` nothing is left running.
 
 ```markdown

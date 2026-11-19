@@ -90,7 +90,10 @@ eq "worker session denies instead of asking" "$(session_field "loop EX-2" mode)"
 eq "worker session opens in its slot" "$(session_field "loop EX-2" folder)" "$TMP/web-app/.claude/worktrees/loop-1"
 case "$(session_field "loop EX-2" deny)" in *"loop-spec approve"*) ok ;; *) fail "worker may not approve a spec" ;; esac
 case "$(session_field "loop EX-2" allow)" in *"Bash(~/loop/bin/loop-preview:*)"*) ok ;; *) fail "worker may open a preview of its task" ;; esac
+case "$(session_field "loop EX-2" allow)" in *"Bash(~/loop/bin/loop-upload:*)"*) ok ;; *) fail "worker may upload its e2e screenshots" ;; esac
 case "$(session_field "design EX-1" allow)" in *"loop-preview"*) fail "designer opens no preview" ;; *) ok ;; esac
+case "$(session_field "loop EX-2" allow)" in *"mcp__claude-in-chrome"*) ok ;; *) fail "worker may drive the browser for e2e" ;; esac
+case "$(session_field "design EX-1" allow)" in *"mcp__claude-in-chrome"*) fail "designer drives no browser" ;; *) ok ;; esac
 
 eq "designer claims the design" "$(spec status EX-1)" "designing"
 eq "designer session runs loop-design" "$(session_field "design EX-1" command)" "/loop-design EX-1 web-app low"

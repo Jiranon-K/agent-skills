@@ -21,7 +21,6 @@ It reads the task's repo and branch from loop-state, recreates the worktree at
 local files with wt-setup, and runs the repo's dev command there. The dev command is LOOP_DEV_<repo key> in $LOOP_DIR/config.sh,
 with every character of the key that is not a letter or digit written as "_".
 
-It refuses when free memory is under 30% (FORCE=1 skips that check).
 A session runs "here" as a background command to keep the server inside itself.
 "stop" keeps the worktree. /merge-approved removes the worktree.
 USAGE
@@ -29,12 +28,6 @@ USAGE
 }
 
 die() { echo "loop-preview: $*" >&2; exit 1; }
-
-memory_is_low() {
-  local free
-  free=$(memory_pressure -Q 2>/dev/null | grep -oE '[0-9]+%' | tr -d '%')
-  [ -n "$free" ] && [ "$free" -lt 30 ]
-}
 
 ensure_worktree() {
   [ -d "$WT" ] && return 0
@@ -48,7 +41,7 @@ ensure_worktree() {
 }
 
 start_detached() {
-  FORCE=1 nohup "$0" here "$TASK" > "$LOG_FILE" 2>&1 < /dev/null &
+  nohup "$0" here "$TASK" > "$LOG_FILE" 2>&1 < /dev/null &
   for _ in 1 2 3 4 5 6 7 8 9 10; do
     server_pid >/dev/null && return 0
     sleep 0.5
@@ -109,9 +102,6 @@ WT=$("$STATE" path "$REPO" "$TASK") || die "no worktree path for $TASK"
 if server_pid >/dev/null; then
   echo "dev server of $TASK is already running: $DEV in $WT"
   exit 0
-fi
-if [ "${FORCE:-0}" != 1 ] && memory_is_low; then
-  die "free memory under 30% (close something, or run it with FORCE=1)"
 fi
 ensure_worktree
 [ "$ACTION" = here ] && run_here

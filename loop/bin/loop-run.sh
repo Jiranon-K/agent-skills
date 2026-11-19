@@ -310,12 +310,6 @@ open_session() {
   echo "background session '$name' (claude attach $id)"
 }
 
-memory_is_low() {
-  local free
-  free=$(memory_pressure -Q 2>/dev/null | grep -oE '[0-9]+%' | tr -d '%')
-  [ -n "$free" ] && [ "$free" -lt 30 ]
-}
-
 start_designer() {
   local task="$1" repos="$2" risk="${3:-?}" repo repo_dir base where first_dir="" other_dirs="" verb
   SESSION_ALLOW=("${DESIGNER_ALLOW[@]}")
@@ -331,10 +325,6 @@ start_designer() {
       SESSION_ALLOW+=("Bash(git -C $repo_dir $verb:*)")
     done
   done
-  if memory_is_low; then
-    log "## $NOW designer skipped — $task: free memory under 30%"
-    return
-  fi
   if ! "$SPEC" start "$task" "$repos" "$risk" 2>/dev/null; then
     log "## $NOW designer skipped — $task: design is $("$SPEC" status "$task")"
     return
@@ -365,11 +355,6 @@ start_worker() {
   fi
   if "$STATE" get "$task" >/dev/null; then
     log "## $NOW worker skipped — $task already handled ($("$STATE" get "$task" status))"
-    return
-  fi
-  # 8 GB machine: test suites and builds need headroom.
-  if memory_is_low; then
-    log "## $NOW worker skipped — $task: free memory under 30%"
     return
   fi
 

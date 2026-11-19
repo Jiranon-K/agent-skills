@@ -37,7 +37,6 @@ printf -- '---\ntask: EX-2\nstatus: ready\n---\n' > "$LOOP/specs/EX-2.md"
 fake() { printf '#!/bin/bash\n%s\n' "$2" > "$BIN/$1"; chmod +x "$BIN/$1"; }
 fake osascript 'exit 0'
 fake curl 'exit 0'
-fake memory_pressure 'echo "System-wide memory free percentage: 80%"'
 fake claude 'case "$*" in
   *"/loop-triage"*)
     printf "%s\n" "$*" > "$HOME/triage-prompt.txt"

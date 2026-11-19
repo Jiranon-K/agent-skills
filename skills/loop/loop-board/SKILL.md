@@ -1,6 +1,6 @@
 ---
 name: loop-board
-description: Shows where every Loop Engineering task stands right now, grouped by stage (needs a grill, designing, design waits for the owner, waits for a Worker, Worker running, blocked, MR open and waits for verify, merged), as left-to-right box art in the chat. Flags sources that disagree. Read-only. Usage `/loop-board`.
+description: Shows where every Loop Engineering task stands right now, grouped by stage (in the sprint but not in the Loop yet, needs a grill, designing, design waits for the owner, waits for a Worker, Worker running, blocked, MR open and waits for verify, merged), as left-to-right box art in the chat. Flags sources that disagree. Read-only. Usage `/loop-board`.
 ---
 
 # Loop Board
@@ -20,7 +20,7 @@ Run these in one message:
 - The table under `### ต้อง grill ก่อน Agent เริ่มได้` in `~/loop/state/last-triage.md` (its task cells are links already; keep them). "ไม่มี" means none.
 - `~/.local/bin/herdr-core ls` → JSON; each terminal's `where` is `<role> <task> / <tab>` (`loop` = Worker, `design` = Designer, `e2e`), with `agent` and `status`.
 - The task URL base, the "Current sprint" table and the list "Out-of-sprint tasks the owner asked for" in `~/loop/workspace.md`. Link a card as `<base>/tasks/<KEY>`.
-- Per space in that table: `query_view` `space=<key>`, `sprint=<id>`, `view_type=table`, `group=none`. The keys it returns, plus the owner's list, are the sprint keys. A failed call means the board cannot be filtered: say so in one line above the board and show every task.
+- Per space in that table: `query_view` `space=<key>`, `sprint=<id>`, `assignee=me`, `view_type=table`, `group=none`. The keys it returns, plus the owner's list, are the sprint keys. The same call with `open=true` added gives the open sprint tasks; keep each one's `status` and `route`. A failed call means the board cannot be filtered: say so in one line above the board and show every task.
 
 Then, for each `loop-state` task with `mr=`, in one message: from `https://<host>/<path>/-/merge_requests/<n>` run `glab mr view <n> -R <host>/<path> -F json` and keep `state`, `draft`, `labels`, `title`. A failed call is a mismatch line (`อ่าน MR ไม่ได้: <error>`), never a guess.
 
@@ -30,6 +30,7 @@ Drop every task whose key is not a sprint key before placing it. One source deci
 
 | # | stage | owner acts | source and rule |
 |---|---|---|---|
+| 0 | ใน sprint ยังไม่เข้า loop | | an open sprint task that matches no stage below and is not a `split` design |
 | 1 | ต้อง grill | | a row of the triage grill table |
 | 2 | Designer กำลังทำ | | `loop-spec` `designing` or `redo` |
 | 3 | design ติด | | `loop-spec` `blocked` |
@@ -40,7 +41,7 @@ Drop every task whose key is not a sprint key before placing it. One source deci
 | 8 | เปิด MR แล้ว รอ verify | ★ | `loop-state` `mr-open` or `ready-to-ship`; see below |
 | 9 | merge แล้ว รอ archive | | `loop-state` `merged` |
 
-Where a task is in both `loop-spec` and `loop-state`, `loop-state` decides (stages 6 to 9 win over 2 to 5). `split` designs are not shown.
+Where a task is in both `loop-spec` and `loop-state`, `loop-state` decides (stages 6 to 9 win over 2 to 5). `split` designs are not shown. A stage 0 task's `note` says why the Loop has not taken it, from its route and status: `route human`, `ยังไม่ triage` (no route), `อยู่ Triage`, `route agent แต่อยู่ <status>` when its status is not the space's "Pick from" status in `workspace.md`, or `route agent รอ Designer slot`. It has no `next`.
 
 Stage 8 sub-state, in the card's `note`, from the MR:
 - `ready-to-ship` → `repo นี้ห้าม agent push: owner push เอง` and next is `git -C <main checkout> push -u origin <branch>` (checkout from `loop-state repo <repo>`), then `~/loop/bin/loop-mr <task>`.
@@ -62,7 +63,7 @@ Add one mismatch line per case, saying what each source says and the command to 
 
 ## 4. Reply in the chat
 
-The board is the reply. Stages with tasks only, as columns read left to right in stage order, so the flow from grill to merged runs across the screen. At most 3 columns per row; a fourth non-empty stage starts a new row of columns below. Each column is 30 cells wide; pad by display width (Thai vowel and tone marks take no cell). One task is one block of lines in its column with no blank line between tasks: the key and repo on the first line, then MR and note, next and session as lines indented by two spaces, skipping lines with no value. Shorten a long topic or title to fit, never widen the column.
+The board is the reply. Stages with tasks only, as columns read left to right in stage order, so the flow from not-yet-in-the-Loop to merged runs across the screen. At most 3 columns per row; a fourth non-empty stage starts a new row of columns below. Each column is 30 cells wide; pad by display width (Thai vowel and tone marks take no cell). One task is one block of lines in its column with no blank line between tasks: the key and repo on the first line, then MR and note, next and session as lines indented by two spaces, skipping lines with no value. Shorten a long topic or title to fit, never widen the column.
 
 A `★` stage marks its header. When any ★ stage has tasks, the first line of the reply, above the board, is `★ รอคุณ <n> task`.
 

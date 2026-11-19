@@ -100,8 +100,8 @@ After the last `loop-state set` (any outcome), run `~/loop/bin/loop-next` so the
 
 ## After the handoff
 
-The session stays open and the owner may ask for more here. The slot worktree is removed at the next run, and this session keeps its denied calls.
+The session stays open and the owner may ask for more here. The worktree stays until `/merge-approved` removes it, and this session keeps its denied calls.
 
-- Asked to show the change in a browser: run `~/loop/bin/loop-preview here <task>` as a background command of this session. It recreates the worktree when the slot is gone and runs the repo's dev server inside this session. Say which URL to open (from the repo's docs) once it answers, and stop it with `~/loop/bin/loop-preview stop <task>` when the owner is done. Never ask the owner to grant Bash or to type git commands for this.
+- Asked to show the change in a browser: run `~/loop/bin/loop-preview here <task>` as a background command of this session. It uses this task's worktree (and recreates it only if it was removed by hand) and runs the repo's dev server inside this session. Say which URL to open (from the repo's docs) once it answers, and stop it with `~/loop/bin/loop-preview stop <task>` when the owner is done. Never ask the owner to grant Bash or to type git commands for this.
 - Asked for e2e evidence on the MR: the owner runs `/loop-e2e <task>` here and you follow it. Claude in Chrome is allowed for that request only: never open the browser on your own, during the task or after it.
-- Asked for a code change after the slot is gone: say the worktree was freed and that a new session in the path `loop-preview` printed can take it.
+- Asked for a code change: make it here, in this worktree, with the same verify and review steps, then push it with `~/loop/bin/loop-push` (a repo the agent cannot push to: commit only and say so). If the worktree was removed, say so and that a new session in the path `loop-preview` printed can take it.

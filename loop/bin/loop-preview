@@ -17,7 +17,7 @@ task's Worker can check the change in a browser.
   loop-preview stop <task>    stop either one
 
 It reads the task's repo and branch from loop-state, recreates the worktree at
-`loop-state path <repo> <task>` when the Worker's slot was freed, links the
+`loop-state path <repo> <task>` if it was removed, links the
 local files with wt-setup, and runs the repo's dev command there. The dev command is LOOP_DEV_<repo key> in $LOOP_DIR/config.sh,
 with every character of the key that is not a letter or digit written as "_".
 

@@ -96,7 +96,7 @@ eq "pstack link points at the plugin" "$(readlink "$LOOP/pstack")" "$FAKE_HOME/.
 eq "worker is started for the ready spec" "$(state get EX-2 status)" "working"
 eq "worker session runs loop-work" "$(session_field "loop EX-2" command)" "/loop-work EX-2 web-app medium"
 eq "worker session denies instead of asking" "$(session_field "loop EX-2" mode)" "dontAsk"
-eq "worker session opens in its slot" "$(session_field "loop EX-2" folder)" "$TMP/web-app/.claude/worktrees/loop-1"
+eq "worker session opens in a worktree named after its task" "$(session_field "loop EX-2" folder)" "$TMP/web-app/.claude/worktrees/EX-2"
 case "$(session_field "loop EX-2" deny)" in *"loop-spec approve"*) ok ;; *) fail "worker may not approve a spec" ;; esac
 case "$(session_field "loop EX-2" allow)" in *"Bash(~/loop/bin/loop-preview:*)"*) ok ;; *) fail "worker may open a preview of its task" ;; esac
 case "$(session_field "loop EX-2" allow)" in *"Bash(~/loop/bin/loop-upload:*)"*) ok ;; *) fail "worker may upload its e2e screenshots" ;; esac
@@ -115,7 +115,7 @@ case "$(session_field "design EX-1" allow)" in *"Edit "*|*" Write "*) fail "desi
 has "the run is logged" "$LOG" "designer started EX-1 (web-app, risk:low) — background session 'design EX-1' (claude attach abc12345)"
 lacks "the report keeps no DESIGN line" "$LOOP/state/last-triage.md" "DESIGN:"
 has "a new Designer is shown in a herdr space attached to its session" "$FAKE_HOME/spaces.json" '{"name": "design EX-1", "folder": "'"$TMP"'/web-app", "tab": "designer", "argv": ["claude", "attach", "abc12345"]}'
-has "a new Worker is shown in a herdr space" "$FAKE_HOME/spaces.json" '"name": "loop EX-2", "folder": "'"$TMP"'/web-app/.claude/worktrees/loop-1", "tab": "worker"'
+has "a new Worker is shown in a herdr space" "$FAKE_HOME/spaces.json" '"name": "loop EX-2", "folder": "'"$TMP"'/web-app/.claude/worktrees/EX-2", "tab": "worker"'
 lacks "a session that did not open gets no space" "$FAKE_HOME/spaces.json" "UT-1"
 
 eq "a second task of the same space waits" "$(spec status EX-5)" "none"
@@ -136,6 +136,10 @@ has "a second run names the full spaces" "$FAKE_HOME/triage-prompt.txt" "Spaces 
 has "a second run lists the design" "$FAKE_HOME/triage-prompt.txt" "- EX-1 designing repo=web-app risk=low"
 has "a busy Designer is not doubled" "$LOG" "designer skipped — EX-1: no free Designer slot in EX"
 eq "one designer session only" "$(grep -c '"design EX-1"' "$FAKE_HOME/sessions.json")" "1"
+
+state set EX-2 mr-open
+run_loop
+[ -d "$TMP/web-app/.claude/worktrees/EX-2" ] && ok || fail "a task's worktree stays after its MR opens"
 
 echo "pass $PASS fail $FAIL"
 [ "$FAIL" -eq 0 ]

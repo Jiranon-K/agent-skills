@@ -3,8 +3,8 @@
 # One run: Coordinator (triage + route + pick, headless) → for each picked task, while Worker slots are free:
 #   prepare a worktree and open a Claude Code background session (claude --bg) running `/loop-work <task> <repo> <risk>`.
 #   The Worker session claims the task, builds, gets an independent review, opens a Draft MR and records loop-state itself,
-#   then calls loop-next so a freed slot is filled the same day. Worktrees live in fixed slots (.claude/worktrees/loop-<n>)
-#   so Claude asks folder trust once per slot.
+#   then calls loop-next so a freed slot is filled the same day. Each task gets its own worktree (.claude/worktrees/<task>),
+#   kept until /merge-approved removes it; it inherits the main checkout's folder trust.
 # Manual run outside working hours: FORCE=1 ~/loop/bin/loop-run.sh
 # Triage only (no Worker):          TRIAGE_ONLY=1 ~/loop/bin/loop-run.sh
 # Parallel Workers (default 2):     LOOP_MAX_WORKERS=3 ~/loop/bin/loop-run.sh
@@ -123,11 +123,6 @@ WORKSPACE_DENY=(
   "mcp__${WORKSPACE_MCP}__add_doc_image" "mcp__${WORKSPACE_MCP}__send_request"
   "mcp__${WORKSPACE_MCP}__decide_request"
 )
-
-# Free the slots of tasks whose Worker is done; their branches stay.
-for T in $("$STATE" list | awk '$2 ~ /status=(mr-open|ready-to-ship|merged)/ && / wt=/ { print $1 }'); do
-  "$STATE" release "$T" >/dev/null 2>&1 || log "## $NOW slot of $T not released (uncommitted changes)"
-done
 
 CLEANED=$("$LOOP_DIR/bin/loop-clean" 2>&1)
 [ -n "$CLEANED" ] && { DID=1; log "## $NOW cleanup" "" "$CLEANED" ""; }
@@ -372,8 +367,9 @@ start_worker() {
     return
   fi
 
-  if ! wt=$("$STATE" slot "$repo" "$MAX_WORKERS"); then
-    log "## $NOW worker skipped — $task: every $repo slot is in use (loop-state list; blocked tasks keep theirs)"
+  wt=$("$STATE" path "$repo" "$task")
+  if [ -e "$wt" ]; then
+    log "## $NOW worker skipped — $task: $wt already exists (remove it, or finish the task by hand)"
     return
   fi
   branch="loop/$(echo "$task" | tr '[:upper:]' '[:lower:]')"
@@ -386,7 +382,7 @@ start_worker() {
     return
   fi
   "$HOME/.claude/hooks/wt-setup" "$wt" >/dev/null 2>&1 || log "## $NOW worker: wt-setup failed for $wt (local files not linked)"
-  "$STATE" set "$task" working repo="$repo" branch="$branch" wt="$wt"
+  "$STATE" set "$task" working repo="$repo" branch="$branch"
   DID=1
   SESSION_ALLOW=("${WORKER_ALLOW[@]}")
   SESSION_DENY=("${WORKER_DENY[@]}")

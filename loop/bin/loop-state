@@ -3,16 +3,13 @@
 # loop-run.sh and the loop skills call this instead of reading ~/loop/state/tickets/ themselves.
 #
 #   loop-state repo <repo>                           "<main checkout> <base branch>" from $LOOP_DIR/repos
-#   loop-state path <repo> <ticket>                  worktree path for a ticket: its wt= slot, else <main checkout>/.claude/worktrees/<ticket>
-#   loop-state slot <repo> <max>                     first free Worker slot <main checkout>/.claude/worktrees/loop-<n>, n <= max; exit 1 if none
-#   loop-state release <ticket>                      remove the ticket's slot worktree (branch kept) if it is clean; forget wt=
+#   loop-state path <repo> <ticket>                  worktree path for a ticket: <main checkout>/.claude/worktrees/<ticket> (or its old wt= slot)
 #   loop-state get <ticket> [key]                    whole state (key=value lines) or one value; exit 1 if unknown
 #   loop-state set <ticket> <status> [key=value...]  write state; keys not given are kept
 #   loop-state list [status]                         one line per ticket: "<ticket> status=... repo=..."
 #   loop-state reset <ticket>                        remove state, and the worktree if it is clean and pushed
 #
-# Statuses: working blocked ready-to-ship mr-open merged. Keys: repo branch mr ui (yes|no) wt (slot path).
-# Slots have fixed paths so Claude's folder trust is asked once per slot, not once per ticket.
+# Statuses: working blocked ready-to-ship mr-open merged. Keys: repo branch mr ui (yes|no) wt (old slot path).
 set -u
 
 LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
@@ -43,37 +40,6 @@ cmd_path() {
   if [ -d "$WT_ROOT/$1-$2" ]; then echo "$WT_ROOT/$1-$2"; return; fi
   dir=$(cmd_repo "$1") || exit 1
   echo "${dir% *}/.claude/worktrees/$2"
-}
-
-cmd_slot() {
-  [ $# -eq 2 ] || die "usage: slot <repo> <max>"
-  local dir n path f taken
-  dir=$(cmd_repo "$1") || exit 1
-  n=1
-  while [ "$n" -le "$2" ]; do
-    path="${dir% *}/.claude/worktrees/loop-$n"
-    taken=0
-    for f in "$TICKETS"/*; do
-      [ -f "$f" ] && [ "$(value "${f##*/}" wt)" = "$path" ] && taken=1
-    done
-    if [ "$taken" -eq 0 ] && [ ! -e "$path" ]; then echo "$path"; return; fi
-    n=$((n + 1))
-  done
-  exit 1
-}
-
-cmd_release() {
-  [ $# -eq 1 ] || die "usage: release <ticket>"
-  [ -f "$TICKETS/$1" ] || die "no state for $1"
-  local wt main
-  wt=$(value "$1" wt)
-  [ -n "$wt" ] || return 0
-  if [ -d "$wt" ]; then
-    [ -z "$(git -C "$wt" status --porcelain)" ] || die "$wt has uncommitted changes; not released"
-    main=$(cd "$wt" && cd "$(git rev-parse --git-common-dir)/.." && pwd)
-    git -C "$main" worktree remove "$wt" || die "could not remove $wt"
-  fi
-  sed '/^wt=/d' "$TICKETS/$1" > "$TICKETS/$1.tmp" && mv "$TICKETS/$1.tmp" "$TICKETS/$1"
 }
 
 cmd_get() {
@@ -135,6 +101,6 @@ cmd_reset() {
 cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
-  repo|path|slot|release|get|set|list|reset) "cmd_$cmd" "$@" ;;
-  *) sed -n 5,14p "$0" >&2; exit 2 ;;
+  repo|path|get|set|list|reset) "cmd_$cmd" "$@" ;;
+  *) sed -n 5,11p "$0" >&2; exit 2 ;;
 esac

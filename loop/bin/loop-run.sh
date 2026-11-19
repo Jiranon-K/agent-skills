@@ -307,7 +307,21 @@ open_session() {
     printf '%s\n' "$out" | grep . | tail -n 1
     return 1
   fi
-  echo "background session '$name' (claude attach $id)"
+  if show_session "$name" "$folder" "$id"; then
+    echo "background session '$name' (claude attach $id), shown in herdr space '$name'"
+  else
+    echo "background session '$name' (claude attach $id)"
+  fi
+}
+
+show_session() {
+  local name="$1" folder="$2" id="$3" tab="worker" json
+  case "$name" in design\ *) tab="designer" ;; esac
+  command -v herdr-app >/dev/null 2>&1 || return 1
+  herdr-app status >/dev/null 2>&1 || return 1
+  json=$(python3 -I -c 'import json, sys
+print(json.dumps({"name": sys.argv[1], "folder": sys.argv[2], "tab": sys.argv[3], "argv": ["claude", "attach", sys.argv[4]]}))' "$name" "$folder" "$tab" "$id")
+  herdr-app do space.new "$json" >/dev/null 2>&1
 }
 
 start_designer() {

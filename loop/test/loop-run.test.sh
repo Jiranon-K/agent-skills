@@ -37,6 +37,10 @@ printf -- '---\ntask: EX-2\nstatus: ready\n---\n' > "$LOOP/specs/EX-2.md"
 fake() { printf '#!/bin/bash\n%s\n' "$2" > "$BIN/$1"; chmod +x "$BIN/$1"; }
 fake osascript 'exit 0'
 fake curl 'exit 0'
+fake herdr-app 'case "$1" in
+  status) exit 0 ;;
+  do) printf "%s\n" "$3" >> "$HOME/spaces.json" ;;
+esac'
 fake claude 'case "$*" in
   *"/loop-triage"*)
     printf "%s\n" "$*" > "$HOME/triage-prompt.txt"
@@ -110,6 +114,9 @@ case "$(session_field "design EX-1" allow)" in *"Write(~/loop/designs/**)"*) ok 
 case "$(session_field "design EX-1" allow)" in *"Edit "*|*" Write "*) fail "designer has no blanket edit" ;; *) ok ;; esac
 has "the run is logged" "$LOG" "designer started EX-1 (web-app, risk:low) — background session 'design EX-1' (claude attach abc12345)"
 lacks "the report keeps no DESIGN line" "$LOOP/state/last-triage.md" "DESIGN:"
+has "a new Designer is shown in a herdr space attached to its session" "$FAKE_HOME/spaces.json" '{"name": "design EX-1", "folder": "'"$TMP"'/web-app", "tab": "designer", "argv": ["claude", "attach", "abc12345"]}'
+has "a new Worker is shown in a herdr space" "$FAKE_HOME/spaces.json" '"name": "loop EX-2", "folder": "'"$TMP"'/web-app/.claude/worktrees/loop-1", "tab": "worker"'
+lacks "a session that did not open gets no space" "$FAKE_HOME/spaces.json" "UT-1"
 
 eq "a second task of the same space waits" "$(spec status EX-5)" "none"
 has "the waiting task is logged" "$LOG" "designer skipped — EX-5: no free Designer slot in EX"

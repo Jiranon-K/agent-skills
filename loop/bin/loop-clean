@@ -143,7 +143,3 @@ case "${1:-}" in
 esac
 
 [ $((archived + removed + kept)) -eq 0 ] || say "cleanup: archived $archived · removed $removed · kept $kept"
-
-if [ "$dry" -eq 0 ] && [ -x "$LOOP_DIR/bin/loop-paperclip" ]; then
-  (nohup "$LOOP_DIR/bin/loop-paperclip" sync >/dev/null 2>&1 &)
-fi

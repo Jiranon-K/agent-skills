@@ -93,7 +93,6 @@ $section" --model haiku --effort medium --permission-mode default --max-turns 2 
 
 on_exit() {
   [ "$DID" = "1" ] && summarize
-  [ -x "$LOOP_DIR/bin/loop-paperclip" ] && "$LOOP_DIR/bin/loop-paperclip" sync
   rmdir "$LOCK"
 }
 trap on_exit EXIT

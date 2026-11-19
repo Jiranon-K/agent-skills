@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+import datetime
+import fcntl
+import glob
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+
+LOOP_DIR = os.environ.get("LOOP_DIR") or os.path.expanduser("~/loop")
+CLAUDE_DIR = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+MAP_FILE = os.path.join(LOOP_DIR, "state", "paperclip.json")
+CHAT_FILE = os.path.join(LOOP_DIR, "state", "paperclip-chat.json")
+STAGE_COMMENT = re.compile(r"^`[^`]+` → `[^`]+`$")
+NO_SESSION = "ไม่มี session ของงานนี้ให้คุยด้วย Worker หรือ Designer ยังไม่เริ่ม หรือ session ถูกลบไปแล้ว"
+BUSY = "session กำลังทำงานอยู่ ข้อความนี้จะถูกส่งเมื่อมันว่าง"
+REPLY_LIMIT = 6000
+os.environ["PATH"] = os.pathsep.join([
+    os.environ.get("PATH", ""), os.path.expanduser("~/.local/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
+])
+
+
+def load_mirror():
+    loader = importlib.machinery.SourceFileLoader("loop_paperclip", os.path.join(LOOP_DIR, "bin", "loop-paperclip"))
+    spec = importlib.util.spec_from_loader("loop_paperclip", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def now_stamp():
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def sessions_of(task):
+    result = subprocess.run(["claude", "agents", "--json", "--all"], capture_output=True, text=True, check=False)
+    try:
+        listed = json.loads(result.stdout or "[]")
+    except ValueError:
+        return []
+    names = ("loop " + task, "design " + task)
+    found = [one for one in listed if one.get("kind") == "background" and one.get("name") in names]
+    return sorted(found, key=lambda one: one.get("startedAt", 0))
+
+
+def wake(session, message):
+    if session.get("pid"):
+        subprocess.run(["claude", "stop", session["id"]], capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        ["claude", "--bg", "--resume", session["sessionId"], "--", message],
+        cwd=session["cwd"], stdin=subprocess.DEVNULL, capture_output=True, text=True, check=False,
+    )
+    return "backgrounded · {} ".format(session["id"]) in result.stdout + " "
+
+
+def text_of(content):
+    if isinstance(content, str):
+        return content
+    return "\n".join(block.get("text", "") for block in content if block.get("type") == "text")
+
+
+def answer_to(session_id, message):
+    paths = glob.glob(os.path.join(CLAUDE_DIR, "projects", "*", session_id + ".jsonl"))
+    if not paths:
+        return ""
+    replies, asked = [], False
+    with open(paths[0], encoding="utf-8") as transcript:
+        for line in transcript:
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if entry.get("type") not in ("user", "assistant") or entry.get("isSidechain"):
+                continue
+            text = text_of(entry.get("message", {}).get("content", ""))
+            if entry["type"] == "user" and text.strip() == message.strip():
+                replies, asked = [], True
+            elif entry["type"] == "assistant" and asked and text.strip():
+                replies.append(text.strip())
+    return "\n\n".join(replies)[-REPLY_LIMIT:]
+
+
+class Chat:
+    def __init__(self, board, state):
+        self.board = board
+        self.state = state
+
+    def post(self, task, issue_id, body):
+        created = self.board.call("POST", "/issues/{}/comments".format(issue_id), {"body": body})
+        self.state["tasks"][task]["seen"].append(created["id"])
+
+    def new_comments(self, task, issue_id):
+        seen = self.state["tasks"][task]["seen"]
+        comments = self.board.call("GET", "/issues/{}/comments".format(issue_id)) or []
+        fresh = [
+            one for one in comments
+            if one["id"] not in seen and one["createdAt"] > self.state["since"]
+            and one.get("authorType") == "user" and not STAGE_COMMENT.match(one["body"].strip())
+        ]
+        return sorted(fresh, key=lambda one: one["createdAt"])
+
+    def deliver_answer(self, task, issue_id):
+        entry = self.state["tasks"][task]
+        waiting = entry.get("waiting")
+        if not waiting:
+            return
+        live = [one for one in sessions_of(task) if one["id"] == waiting["id"]]
+        if live and live[0].get("status") == "busy":
+            return
+        answer = answer_to(waiting["sessionId"], waiting["message"])
+        if not answer and live:
+            return
+        self.post(task, issue_id, "**{}**\n\n{}".format(waiting["name"], answer or "session จบไปโดยไม่มีคำตอบ"))
+        del entry["waiting"]
+
+    def send_comments(self, task, issue_id):
+        entry = self.state["tasks"][task]
+        if entry.get("waiting"):
+            return
+        fresh = self.new_comments(task, issue_id)
+        if not fresh:
+            return
+        sessions = sessions_of(task)
+        if not sessions:
+            entry["seen"] += [one["id"] for one in fresh]
+            return self.post(task, issue_id, NO_SESSION)
+        session = sessions[-1]
+        if session.get("status") == "busy":
+            if not entry.get("told_busy"):
+                entry["told_busy"] = True
+                self.post(task, issue_id, BUSY)
+            return
+        message = "\n\n".join(one["body"].strip() for one in fresh)
+        entry["seen"] += [one["id"] for one in fresh]
+        entry.pop("told_busy", None)
+        if not wake(session, message):
+            return self.post(task, issue_id, "ส่งข้อความเข้า session `{}` ไม่สำเร็จ".format(session["name"]))
+        entry["waiting"] = {"id": session["id"], "sessionId": session["sessionId"], "name": session["name"], "message": message}
+
+    def run(self, mapping):
+        for task, known in sorted(mapping.items()):
+            self.state["tasks"].setdefault(task, {"seen": []})
+            self.deliver_answer(task, known["id"])
+            self.send_comments(task, known["id"])
+        for task in set(self.state["tasks"]) - set(mapping):
+            del self.state["tasks"][task]
+
+
+def poll(mirror, config):
+    try:
+        with open(MAP_FILE, encoding="utf-8") as handle:
+            mapping = json.load(handle)
+    except (OSError, ValueError):
+        return
+    with open(CHAT_FILE, "a+", encoding="utf-8") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        handle.seek(0)
+        state = json.loads(handle.read() or "{}")
+        state.setdefault("since", now_stamp())
+        state.setdefault("tasks", {})
+        try:
+            Chat(mirror.Board(config), state).run(mapping)
+        finally:
+            handle.seek(0)
+            handle.truncate()
+            handle.write(json.dumps(state, indent=1, sort_keys=True, ensure_ascii=False) + "\n")
+
+
+def main():
+    if sys.argv[1:] != ["poll"]:
+        sys.stderr.write("loop-chat poll    pass new Paperclip comments to each task's session and post its answers back\n")
+        return 2
+    mirror = load_mirror()
+    config = mirror.read_config()
+    if not config["url"] or not config["company"]:
+        return 0
+    os.makedirs(os.path.dirname(CHAT_FILE), exist_ok=True)
+    try:
+        poll(mirror, config)
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as error:
+        mirror.log_failure("chat: " + str(error)[:200])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

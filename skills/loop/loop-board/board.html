@@ -1,0 +1,199 @@
+<title>Loop Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --crail: #C15F3C;
+  --ground: #F4F3EE;
+  --surface: #FFFFFF;
+  --cloudy: #B1ADA1;
+  --ink: #2B2A27;
+  --muted: #6E6A61;
+  --rule: #DEDBD2;
+  --warn: #9A6A12;
+  --sans: "IBM Plex Sans Thai", "Thonburi", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --crail: #E08A68; --ground: #262522; --surface: #302F2B; --cloudy: #8C887E; --ink: #EEECE6; --muted: #B1ADA1; --rule: #45433E; --warn: #E0B65A; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --crail: #E08A68; --ground: #262522; --surface: #302F2B; --cloudy: #8C887E; --ink: #EEECE6; --muted: #B1ADA1; --rule: #45433E; --warn: #E0B65A; color-scheme: dark; }
+body { background: var(--ground); color: var(--ink); font: 15px/1.6 var(--sans); }
+.wrap { max-width: 920px; margin: 0 auto; padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+header { display: grid; gap: 4px; }
+h1 { font-size: 26px; font-weight: 600; margin: 0; text-wrap: balance; }
+.meta { color: var(--muted); font-size: 13px; font-family: var(--mono); }
+.todo { color: var(--crail); font-weight: 600; }
+.flow { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; overflow-x: auto; }
+.flow svg { display: block; width: 100%; min-width: 360px; height: auto; }
+h2 { font-size: 17px; font-weight: 600; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; }
+h2 .count { font-family: var(--mono); color: var(--muted); font-size: 13px; font-weight: 400; }
+h2.owner { color: var(--crail); }
+.stages { display: grid; gap: 24px; }
+.cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; min-width: 0; }
+.card.owner { border-color: var(--crail); }
+.key { font-family: var(--mono); font-weight: 500; color: var(--ink); text-decoration: none; }
+.key:hover, .key:focus-visible { color: var(--crail); text-decoration: underline; }
+.title { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--mono); font-size: 12px; border: 1px solid var(--rule); border-radius: 4px; padding: 0 6px; color: var(--muted); }
+.chip.live { border-color: var(--cloudy); color: var(--ink); }
+.next { font-family: var(--mono); font-size: 13px; color: var(--crail); overflow-wrap: anywhere; }
+.note { font-size: 13px; color: var(--muted); }
+a { color: inherit; }
+a:focus-visible { outline: 2px solid var(--crail); outline-offset: 2px; }
+.mismatch { border: 1px solid var(--warn); border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; }
+.mismatch h2 { color: var(--warn); }
+.mismatch p { margin: 0; font-size: 14px; }
+.mismatch code { font-family: var(--mono); font-size: 13px; }
+</style>
+<div class="wrap">
+  <header>
+    <h1>Loop Board</h1>
+    <div class="meta" id="meta"></div>
+  </header>
+  <section class="flow" aria-label="จำนวน task ในแต่ละ stage"><svg id="flow" role="img"></svg></section>
+  <div class="stages" id="stages"></div>
+  <section class="mismatch" id="mismatch" hidden></section>
+</div>
+<script id="board-data" type="application/json">__BOARD_DATA__</script>
+<script>
+const board = JSON.parse(document.getElementById("board-data").textContent);
+const svgNamespace = "http://www.w3.org/2000/svg";
+
+function element(tag, attributes, text) {
+  const node = document.createElementNS(svgNamespace, tag);
+  Object.entries(attributes).forEach(([name, value]) => node.setAttribute(name, value));
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function drawFlow() {
+  const svg = document.getElementById("flow");
+  const rowHeight = 34;
+  const labelWidth = 230;
+  const barWidth = 380;
+  const width = labelWidth + barWidth + 60;
+  const height = board.stages.length * rowHeight + 8;
+  const largest = Math.max(1, ...board.stages.map(stage => stage.tasks.length));
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("aria-label", board.stages.map(stage => `${stage.label} ${stage.tasks.length}`).join(", "));
+  svg.appendChild(element("line", { x1: 10, y1: rowHeight / 2, x2: 10, y2: height - rowHeight / 2, stroke: "var(--rule)", "stroke-width": 2, fill: "none" }));
+  board.stages.forEach((stage, index) => {
+    const y = index * rowHeight + 4;
+    const middle = y + rowHeight / 2 - 4;
+    const color = stage.owner ? "var(--crail)" : "var(--cloudy)";
+    const count = stage.tasks.length;
+    svg.appendChild(element("circle", { cx: 10, cy: middle, r: 5, fill: count ? color : "var(--surface)", stroke: color, "stroke-width": 2 }));
+    svg.appendChild(element("text", { x: 24, y: middle + 5, fill: stage.owner ? "var(--crail)" : "var(--ink)", "font-size": 14, "font-family": "var(--sans)", "font-weight": stage.owner ? 600 : 400 }, (stage.owner ? "★ " : "") + stage.label));
+    const length = count ? Math.max(4, (count / largest) * barWidth) : 0;
+    svg.appendChild(element("rect", { x: labelWidth, y: middle - 9, width: barWidth, height: 18, rx: 3, fill: "var(--ground)" }));
+    if (length) svg.appendChild(element("rect", { x: labelWidth, y: middle - 9, width: length, height: 18, rx: 3, fill: color }));
+    svg.appendChild(element("text", { x: labelWidth + Math.max(length, 0) + 8, y: middle + 5, fill: "var(--muted)", "font-size": 13, "font-family": "var(--mono)" }, String(count)));
+  });
+}
+
+function chip(text, live) {
+  const node = document.createElement("span");
+  node.className = live ? "chip live" : "chip";
+  node.textContent = text;
+  return node;
+}
+
+function link(text, href, className) {
+  const node = document.createElement("a");
+  node.textContent = text;
+  node.href = href;
+  node.target = "_blank";
+  node.rel = "noopener";
+  if (className) node.className = className;
+  return node;
+}
+
+function card(task, owner) {
+  const node = document.createElement("article");
+  node.className = owner ? "card owner" : "card";
+  node.appendChild(link(task.key, task.url, "key"));
+  if (task.title) {
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = task.title;
+    node.appendChild(title);
+  }
+  const chips = document.createElement("div");
+  chips.className = "chips";
+  [task.repo, task.risk && `risk:${task.risk}`, ...(task.labels || [])].filter(Boolean).forEach(text => chips.appendChild(chip(text)));
+  if (task.session) chips.appendChild(chip(`session ${task.session}`, true));
+  node.appendChild(chips);
+  if (task.mr) {
+    const mr = document.createElement("div");
+    mr.className = "note";
+    mr.appendChild(link(`MR !${task.mr.split("/").pop()}${task.draft ? " (Draft)" : ""}`, task.mr));
+    node.appendChild(mr);
+  }
+  if (task.note) {
+    const note = document.createElement("div");
+    note.className = "note";
+    note.textContent = task.note;
+    node.appendChild(note);
+  }
+  if (task.next) {
+    const next = document.createElement("div");
+    next.className = "next";
+    next.textContent = task.next;
+    node.appendChild(next);
+  }
+  return node;
+}
+
+function drawStages() {
+  const container = document.getElementById("stages");
+  board.stages.filter(stage => stage.tasks.length).forEach(stage => {
+    const section = document.createElement("section");
+    const heading = document.createElement("h2");
+    if (stage.owner) heading.className = "owner";
+    heading.textContent = (stage.owner ? "★ " : "") + stage.label;
+    const count = document.createElement("span");
+    count.className = "count";
+    count.textContent = String(stage.tasks.length);
+    heading.appendChild(count);
+    const cards = document.createElement("div");
+    cards.className = "cards";
+    stage.tasks.forEach(task => cards.appendChild(card(task, stage.owner)));
+    section.append(heading, cards);
+    container.appendChild(section);
+  });
+}
+
+function drawMismatches() {
+  if (!board.mismatches || !board.mismatches.length) return;
+  const section = document.getElementById("mismatch");
+  const heading = document.createElement("h2");
+  heading.textContent = "⚠ ไม่ตรงกัน";
+  section.appendChild(heading);
+  board.mismatches.forEach(item => {
+    const line = document.createElement("p");
+    const key = document.createElement("code");
+    key.textContent = item.task;
+    line.append(key, " ", item.text);
+    section.appendChild(line);
+  });
+  section.hidden = false;
+}
+
+function drawMeta() {
+  const waiting = board.stages.filter(stage => stage.owner).reduce((sum, stage) => sum + stage.tasks.length, 0);
+  const meta = document.getElementById("meta");
+  meta.textContent = `อัปเดต ${board.generated} · `;
+  const todo = document.createElement("span");
+  todo.className = "todo";
+  todo.textContent = `รอคุณ ${waiting} task`;
+  meta.appendChild(todo);
+}
+
+drawMeta();
+drawFlow();
+drawStages();
+drawMismatches();
+</script>

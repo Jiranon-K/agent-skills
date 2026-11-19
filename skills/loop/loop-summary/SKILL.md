@@ -17,4 +17,5 @@ Show the user what the loop did since the last summary. Read-only except the mar
    - Then `งานที่ค้าง:` listing tasks that are `working`, `ready-to-ship`, `mr-open` or `blocked`, with their MR links. For `ready-to-ship`, say the repo forbids agent pushes and the owner pushes by hand.
    - Then `รอรีวิว design:` one line per proposed design: task, repo, risk and the command `/loop-design-review <task>`. This block comes first among the pending ones because a Worker cannot start until the owner reviews. Omit it when there is none.
    - Then `ต้อง grill ก่อน Agent เริ่ม:` one line per row of step 4: task link, who to ask, the topic. Do not repeat the question text and do not add questions of your own. Omit the block when the table says "ไม่มี".
+   - Last line: `ดูภาพรวม: /loop-board`. Do not run it.
 6. Write the current time (`date "+%Y-%m-%d %H:%M"`) to `~/loop/state/last-summary-seen`.

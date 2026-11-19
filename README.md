@@ -30,7 +30,7 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 
 | Folder | Count | Holds |
 | :--- | :--- | :--- |
-| **[skills/](skills)** | 21 | engineering, productivity, design, loop, personal |
+| **[skills/](skills)** | 22 | engineering, productivity, design, loop, personal |
 | **[claude/agents/](claude/agents)** | 53 | subagents grouped by category |
 | **[claude/rules/](claude/rules)** | 5 | code style, testing, self-improvement, pstack in Thai, pstack models |
 | **[plugins.md](plugins.md)** | 9 | installed with `claude plugin`, not copied |
@@ -57,6 +57,7 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 | personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
 | loop | `loop-triage`, `loop-design`, `loop-work`, `loop-review` | Coordinator, designer (architect sketch and proposed spec), worker (one herdr session per task) and reviewer |
 | loop | `loop-summary` | Shows summaries since last run |
+| loop | `loop-board`, `loop-explain` | Read-only views: every task by stage (terminal and Artifact), and one task explained from its record |
 | loop | `loop-design-review`, `merge-approved`, `loop-e2e` | Human gates: approve the design, merge the MR, browser e2e by hand when the Worker could not run it |
 | loop | `loop-reflect` | Weekly learning pass that proposes edits to the loop skills |
 

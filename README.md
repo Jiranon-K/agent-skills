@@ -57,7 +57,7 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 | personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
 | loop | `loop-triage`, `loop-design`, `loop-work`, `loop-review` | Coordinator, designer (architect sketch and proposed spec), worker (one herdr session per task) and reviewer |
 | loop | `loop-summary` | Shows summaries since last run |
-| loop | `loop-board`, `loop-explain` | Read-only views: every task by stage (terminal and Artifact), and one task explained from its record |
+| loop | `loop-board`, `loop-explain` | Read-only views: every task by stage (box art in chat), and one task explained from its record |
 | loop | `loop-design-review`, `merge-approved`, `loop-e2e` | Human gates: approve the design, merge the MR, browser e2e by hand when the Worker could not run it |
 | loop | `loop-reflect` | Weekly learning pass that proposes edits to the loop skills |
 

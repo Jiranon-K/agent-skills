@@ -1,13 +1,15 @@
 ---
 name: loop-board
-description: Shows where every Loop Engineering task stands right now, grouped by stage (needs a grill, designing, design waits for the owner, waits for a Worker, Worker running, blocked, MR open and waits for verify, merged), as box art in the terminal and as a Claude Artifact republished to one URL. Flags sources that disagree. Read-only. Usage `/loop-board`.
+description: Shows where every Loop Engineering task stands right now, grouped by stage (needs a grill, designing, design waits for the owner, waits for a Worker, Worker running, blocked, MR open and waits for verify, merged), as left-to-right box art in the chat. Flags sources that disagree. Read-only. Usage `/loop-board`.
 ---
 
 # Loop Board
 
 One picture of the Loop now: every task it has touched, in the stage it is in, and what the owner must do next. Reply in Thai, per `~/.claude/rules/explanation-style.md`. Run inline; no subagents.
 
-**Read-only.** Never write Workspace, GitLab, `loop-state`, `loop-spec` or the `loop-summary` marker. The only files written are `~/loop/state/board.json`, `~/loop/state/board.html` and `~/loop/state/board-artifact-url`. Never call Workspace: card links use the key.
+**Read-only.** Writes nothing: no files, no Artifact, no Workspace, GitLab, `loop-state`, `loop-spec` or `loop-summary` marker. The only Workspace call is the read-only `query_view` for the sprint below; card links use the key.
+
+**Current sprint only.** The board shows a task only when it is in its space's current sprint, or its key is in the `workspace.md` list "Out-of-sprint tasks the owner asked for". Every other task is left out: no card, no mismatch line, no count.
 
 ## 1. Read the sources
 
@@ -17,13 +19,14 @@ Run these in one message:
 - `~/loop/bin/loop-spec list` → `<task> <design status> repo=… risk=…`
 - The table under `### ต้อง grill ก่อน Agent เริ่มได้` in `~/loop/state/last-triage.md` (its task cells are links already; keep them). "ไม่มี" means none.
 - `~/.local/bin/herdr-core ls` → JSON; each terminal's `where` is `<role> <task> / <tab>` (`loop` = Worker, `design` = Designer, `e2e`), with `agent` and `status`.
-- The task URL base in `~/loop/workspace.md`. Link a card as `<base>/tasks/<KEY>`.
+- The task URL base, the "Current sprint" table and the list "Out-of-sprint tasks the owner asked for" in `~/loop/workspace.md`. Link a card as `<base>/tasks/<KEY>`.
+- Per space in that table: `query_view` `space=<key>`, `sprint=<id>`, `view_type=table`, `group=none`. The keys it returns, plus the owner's list, are the sprint keys. A failed call means the board cannot be filtered: say so in one line above the board and show every task.
 
 Then, for each `loop-state` task with `mr=`, in one message: from `https://<host>/<path>/-/merge_requests/<n>` run `glab mr view <n> -R <host>/<path> -F json` and keep `state`, `draft`, `labels`, `title`. A failed call is a mismatch line (`อ่าน MR ไม่ได้: <error>`), never a guess.
 
 ## 2. Put each task in one stage
 
-One source decides each stage. A task appears once, in the first stage that matches, in this order:
+Drop every task whose key is not a sprint key before placing it. One source decides each stage. A task appears once, in the first stage that matches, in this order:
 
 | # | stage | owner acts | source and rule |
 |---|---|---|---|
@@ -57,52 +60,24 @@ Add one mismatch line per case, saying what each source says and the command to 
 - `loop-spec` `designing` with no live `design` terminal for the task.
 - A grill-table task that is also in `loop-state` or `loop-spec` as `approved`.
 
-## 4. Write the data and render
+## 4. Reply in the chat
 
-Write `~/loop/state/board.json` with the `Write` tool:
+The board is the reply. Stages with tasks only, as columns read left to right in stage order, so the flow from grill to merged runs across the screen. At most 3 columns per row; a fourth non-empty stage starts a new row of columns below. Each column is 30 cells wide; pad by display width (Thai vowel and tone marks take no cell). One task is one block of lines in its column with no blank line between tasks: the key and repo on the first line, then MR and note, next and session as lines indented by two spaces, skipping lines with no value. Shorten a long topic or title to fit, never widen the column.
 
-```json
-{
-  "generated": "<date '+%Y-%m-%d %H:%M'>",
-  "stages": [
-    {"id": "grill", "label": "ต้อง grill", "owner": false, "tasks": [
-      {"key": "APP-12", "url": "<card link>", "title": "<MR or grill topic>", "repo": "web", "risk": "medium",
-       "mr": "<MR URL>", "draft": true, "labels": ["needs:e2e"], "session": "worker done",
-       "note": "รอ e2e", "next": "/loop-e2e APP-12"}
-    ]}
-  ],
-  "mismatches": [{"task": "APP-12", "text": "loop-state: mr-open · MR: merged · ดู loop-state get APP-12"}]
-}
-```
-
-All nine stages, in order, even when empty. Omit a task field that has no value. For a grill row, `title` is the topic and `note` is `ถาม <who>`.
-
-Render the page next to this skill:
-
-```bash
-python3 -I -c 'import json,sys; t=open(sys.argv[1]).read(); d=json.load(open(sys.argv[2])); open(sys.argv[3],"w").write(t.replace("__BOARD_DATA__", json.dumps(d, ensure_ascii=False).replace("</","<\\/")))' ~/.claude/skills/loop-board/board.html ~/loop/state/board.json ~/loop/state/board.html
-```
-
-## 5. Publish
-
-- `~/loop/state/board-artifact-url` exists → `Artifact` `read` that URL once (a publish to an artifact this session has not read is refused), then publish `~/loop/state/board.html` with that `url`.
-- Missing → publish `~/loop/state/board.html` with `icon: "board"` and description `Where every Loop task stands now, by stage.`, then write the returned URL to `~/loop/state/board-artifact-url`.
-
-A failed publish does not stop the reply: say so in one line.
-
-## 6. Reply in the terminal
-
-Box art, stages with tasks only, in stage order. ★ stages first line of the reply when not empty, so what the owner must do leads:
+A `★` stage marks its header. When any ★ stage has tasks, the first line of the reply, above the board, is `★ รอคุณ <n> task`.
 
 ```
-★ รอคุณ 3 task
-┌ ★ เปิด MR แล้ว รอ verify (2) ─────────────────────────────
-│ APP-12  web  !519 Draft  รอ e2e          /loop-e2e APP-12
-│ APP-14  web  !517 Draft  รอ human verify /merge-approved APP-14
-└───────────────────────────────────────────────────────────
-┌ Worker กำลังทำ (1) ───────────────────────────────────────
-│ APP-20  api  session worker working
-└───────────────────────────────────────────────────────────
+★ รอคุณ 2 task
+┌ Worker กำลังทำ (1) ──────────┐┌ ★ เปิด MR รอ verify (2) ─────┐┌ merge แล้ว (1) ──────────────┐
+│ APP-20  api                  ││ APP-12  web                  ││ APP-9   web  !510            │
+│   session worker working     ││   !519 Draft  รอ e2e         ││                              │
+│                              ││   /loop-e2e APP-12           ││                              │
+│                              ││ APP-14  web                  ││                              │
+│                              ││   !517 Draft  human verify   ││                              │
+│                              ││   /merge-approved APP-14     ││                              │
+└──────────────────────────────┘└──────────────────────────────┘└──────────────────────────────┘
 ```
 
-Then `⚠ ไม่ตรงกัน` lines when there are any, then the Artifact link on the last line. Keys stay plain inside the box art, since a code block shows links raw; the Artifact carries the links. Nothing else: no summary that repeats the board.
+Column labels may be shortened to fit (`เปิด MR รอ verify`, `merge แล้ว`). For a grill task the first line is the key and `ถาม <who>`, the second the topic. A merged task is one line: key, repo, MR number.
+
+Keys stay plain inside the box art, since a code block shows links raw. Below the board, `⚠ ไม่ตรงกัน` lines when there are any, with each task key as a card link. Nothing else: no summary that repeats the board.

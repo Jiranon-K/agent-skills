@@ -21,9 +21,9 @@ Status names per step. Look the ids up with `list_spaces` by name.
 
 Tasks in the `Triage` status are not ready: never route or pick them.
 
-## Current sprint (the Loop finishes it first)
+## Current sprint (the Loop works only on it)
 
-Tasks in the space's current sprint are routed and picked first. Tasks outside it are picked only when no sprint task can be picked.
+The Loop works only on tasks in the space's current sprint. A task outside it is not routed, commented on, designed, picked or reported, unless its key is listed under "Out-of-sprint tasks the owner asked for" below. Running a loop skill on a task by hand (`/loop-design <task>`, `/loop-work <task>`) is also the owner asking.
 
 | Space | Sprint id | Name | Ends |
 |---|---|---|---|
@@ -31,6 +31,12 @@ Tasks in the space's current sprint are routed and picked first. Tasks outside i
 | PB | `<sprint id>` | 2026-W46 | Sunday of that ISO week |
 
 Read a sprint's tasks with `query_view` `space=<key>`, `sprint=<id>`, `assignee=me`, `open=true`. Always use the listed sprint; never switch on your own. When its end has passed (APP names carry the release date, PB names are ISO weeks), keep using it and add one line to the report: `sprint <name> จบแล้ว — อัปเดต ~/loop/workspace.md` (name the next sprint and its id if an open task carries one).
+
+### Out-of-sprint tasks the owner asked for
+
+One task key per line. Only the owner adds a key here, and removes it when the task is done.
+
+- none
 
 ## Labels the loop writes
 

@@ -12,7 +12,7 @@ First read `~/loop/workspace.md` (tracker facts: spaces, status names, URL and m
 ## Hard rules
 
 - **Only the owner's tasks**: tasks assigned to the calling member, in the spaces listed in `workspace.md`.
-- **Current sprint first**: the current sprint of each space is listed in `workspace.md`. Route and pick sprint tasks before anything else; a task outside the sprint is picked only when no sprint task can be picked this run.
+- **Current sprint only**: the current sprint of each space is listed in `workspace.md`. Only in-sprint tasks are routed, commented on, sent to design, picked and reported. An out-of-sprint task gets nothing: no route, no label, no comment, no design, no pick, no row or count in the report. The one exception is a key in the `workspace.md` list "Out-of-sprint tasks the owner asked for": treat it as in-sprint.
 - **Writes allowed**: `update_task` with `route` and `labels` only, and `add_comment` for a loop comment. Never write description, title, assignee, priority, due date or status. Never transition, create, link or delete anything. Never edit files.
 - **Labels are replace-all**: read the task's current labels, add yours, write the whole list back. Never remove a label you did not add, except swapping your own `risk:`/`type:`/`needs:human` after an answer re-classifies the task.
 - **Triaged** = `route` is set, or the task has `needs:human`. Only untriaged tasks get routed. Two exceptions: an answer arrived on a `needs:human` task (see "Comments"), or the owner removed `needs:human` and cleared `route`.
@@ -23,7 +23,7 @@ First read `~/loop/workspace.md` (tracker facts: spaces, status names, URL and m
 
 1. `list_spaces` once: status ids and names per space.
 2. Per space in `workspace.md`: `query_view` with `space=<key>`, `assignee=me`, `open=true`. It returns key, id, title, status, labels, route and `updatedAt`. Do not use `list_tasks`: its output is too large.
-3. Per space: take the current sprint from `workspace.md` "Current sprint" and list its tasks with `query_view` `space=<key>`, `sprint=<id>`, `assignee=me`, `open=true`. Mark these as in-sprint; every other task from step 2 is out-of-sprint.
+3. Per space: take the current sprint from `workspace.md` "Current sprint" and list its tasks with `query_view` `space=<key>`, `sprint=<id>`, `assignee=me`, `open=true`. Mark these as in-sprint, plus any key in "Out-of-sprint tasks the owner asked for". Every other task from step 2 is out-of-sprint: leave it out of routing, design, picks and the report (it still counts for `CLOSED`).
 4. `get_task <key>` only for a task you must classify or re-check (description, acceptance criteria, dependencies, links). `list_comments <key>` only for tasks with `needs:human` or a loop comment, to find answers. Never call `get_work_context` here.
 
 Tasks in the `Triage` status or in a review or later stage are status rows only: never route or pick them.
@@ -77,8 +77,8 @@ The team files `~/.claude/teams/*.md` (written by `team-context`) list each team
 ## Pick
 
 The prompt gives `Worker slots: N`. Pick up to N tasks (0 → none) that have `route=agent`, are in their space's "Pick from" status, are not in the "Handled tickets" list, whose repo is in `~/loop/repos`, and whose key is in the prompt's "Ready specs" list. Order:
-1. In-sprint tasks first. Out-of-sprint tasks fill only the slots left after every pickable in-sprint task is picked.
-2. Within each group: the nearest due date, then the nearest `release:` label.
+1. Only in-sprint tasks. An empty sprint means `PICK: none`, never an out-of-sprint task.
+2. The nearest due date, then the nearest `release:` label.
 3. Then priority: URGENT > HIGH > MEDIUM > LOW.
 4. Then oldest `updatedAt`.
 
@@ -88,14 +88,14 @@ A **ready spec** is `~/loop/specs/<task key>.md` with the line `status: ready`: 
 
 ## Design
 
-The prompt gives `Designer slots: N per space`, a line `Spaces with no free Designer slot: …` and a "Designs" list (`<task> <status> repo=… risk=…`; a task that is not listed has no design yet). Each space has its own slots, so one space's queue never holds back another's: per space that is not on the no-free-slot line, send up to N tasks (0 → none) to a Designer, and send none for a space on that line. A task qualifies when it has `route=agent`, is in its space's "Pick from" status, is not in "Handled tickets", its repo is in `~/loop/repos`, its key is not in "Ready specs", and its design status is absent, `redo` or `blocked`. Never send a task whose design is `designing`, `proposed`, `split` or `approved`. A task that touches several repos qualifies when every one of them is in `~/loop/repos`; so does a task that was routed `route=human` earlier only because it touches several repos (set `route=agent` and say so in the report). Order the tasks of each space as in "Pick"; two tasks of one repo may be designed in the same run, and the merge-back rule does not apply (a Designer only reads).
+The prompt gives `Designer slots: N per space`, a line `Spaces with no free Designer slot: …` and a "Designs" list (`<task> <status> repo=… risk=…`; a task that is not listed has no design yet). Each space has its own slots, so one space's queue never holds back another's: per space that is not on the no-free-slot line, send up to N tasks (0 → none) to a Designer, and send none for a space on that line. A task qualifies when it is in-sprint, has `route=agent`, is in its space's "Pick from" status, is not in "Handled tickets", its repo is in `~/loop/repos`, its key is not in "Ready specs", and its design status is absent, `redo` or `blocked`. Never send a task whose design is `designing`, `proposed`, `split` or `approved`. A task that touches several repos qualifies when every one of them is in `~/loop/repos`; so does a task that was routed `route=human` earlier only because it touches several repos (set `route=agent` and say so in the report). Order the tasks of each space as in "Pick"; two tasks of one repo may be designed in the same run, and the merge-back rule does not apply (a Designer only reads).
 
 A `proposed` design waits for the owner: list it in the report under "รอรีวิว design" and post no comment for it. A `split` design is done: its parts are their own tasks now, so give its task a status row only.
 
 ## Output format (exact)
 
 Line 1: `NOTIFY: <short Thai summary, ≤ 80 chars>` when something is new or changed vs the previous report (new task, route or labels written, comment posted, an answer arrived, a pick, a task sent to design, a status moved); otherwise `NOTIFY: none`. An unanswered question alone is not a change.
-Then one line per pick: `PICK: <task key> <repo key> <risk>` (in-sprint picks first; say in the report which picks are out-of-sprint and why the sprint had none left) (repo key = first column of `~/loop/repos`), or a single `PICK: none`.
+Then one line per pick: `PICK: <task key> <repo key> <risk>` (repo key = first column of `~/loop/repos`), or a single `PICK: none`.
 Then one line per task sent to design: `DESIGN: <task key> <repo key> <risk>`, or a single `DESIGN: none`. For a task that touches several repos write every repo key joined by commas with no space, the repo that holds most of the change first: `DESIGN: <task key> <repo key>,<repo key> <risk>`.
 Then one line per task closed outside the Loop: `CLOSED: <task key>`, or a single `CLOSED: none`. A key qualifies when it is in "Ready specs" or "Designs", is not in "Handled tickets", is missing from the open tasks you listed, and `get_task <key>` shows it in a done or cancelled status. A task that only moved to another assignee or is still open does not qualify. The runner archives its spec and design package.
 
@@ -105,7 +105,7 @@ Then a Thai markdown report. Every task cell is a link to its task URL from `wor
 release: web-app ถัดไป <date> (cut-off จันทร์ 14:00) · merge-back: <เคลียร์แล้ว | รอ merge back N commits>
 
 ### สรุป
-- sprint: <APP name> · <PB name> | ใน sprint: N (เลือกได้ n) | นอก sprint: N
+- sprint: <APP name> · <PB name> | ใน sprint: N (เลือกได้ n)
 - งานของฉัน: N (APP n · PB n) | route รอบนี้: N | agent: N | needs:human: N | เคลื่อนไหว: N
 
 ### route รอบนี้
@@ -121,7 +121,7 @@ release: web-app ถัดไป <date> (cut-off จันทร์ 14:00) · me
 ### ต้อง grill ก่อน Agent เริ่มได้
 | task | ถามใคร | เรื่อง | ถามไว้เมื่อ |
 |---|---|---|---|
-(every open needs:human task; "ถามใคร" = the person to ask if known, else "เจ้าของ card"; or "ไม่มี")
+(every open in-sprint needs:human task; "ถามใคร" = the person to ask if known, else "เจ้าของ card"; or "ไม่มี")
 
 ### ติดตามสถานะ
 | task | ชื่อ | status | route | เคลื่อนไหวจากรอบก่อน |

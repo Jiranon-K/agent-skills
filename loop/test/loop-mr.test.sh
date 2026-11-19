@@ -35,8 +35,13 @@ case "$1 $2" in
   "mr view") cat "$MR_JSON" 2>/dev/null || exit 1 ;;
   "mr create"|"mr update")
     printf '%s\n' "$*" >> "$CALLS"
-    labels=""
-    while [ $# -gt 0 ]; do [ "$1" = "--label" ] && labels="$2"; shift; done
+    labels="" unlabel=""
+    while [ $# -gt 0 ]; do
+      [ "$1" = "--label" ] && labels="$2"
+      [ "$1" = "--unlabel" ] && unlabel="$2"
+      shift
+    done
+    [ -n "$unlabel" ] && labels=$(python3 -I -c 'import json,sys; print(",".join(label for label in json.load(open(sys.argv[1]))["labels"] if label != sys.argv[2]))' "$MR_JSON" "$unlabel")
     python3 -I -c 'import json,sys; print(json.dumps({"iid": 7, "state": "opened", "draft": True, "labels": sys.argv[1].split(","), "web_url": "https://git.example.com/mr/7"}))' "$labels" > "$MR_JSON" ;;
 esac
 GLAB
@@ -77,6 +82,11 @@ grep -q '^# feat' "$CALLS" && fail "the title line stays out of the description"
 run EX-1 e2e >/dev/null
 has "a second run updates the same MR" "$CALLS" "mr update 7 -R git.example.com/team/web-app --draft"
 has "e2e adds its label" "$CALLS" "--label owner:you,needs:human-verify,needs:e2e"
+
+eq "e2e-done reports the MR it cleared" "$(cd "$TMP" && "$MR" EX-1 e2e-done 2>&1)" "needs:e2e removed from https://git.example.com/mr/7"
+has "e2e-done removes only the e2e label" "$CALLS" "mr update 7 -R git.example.com/team/web-app --unlabel needs:e2e"
+eq "e2e-done keeps the other labels" "$(python3 -I -c 'import json,sys; print(",".join(json.load(open(sys.argv[1]))["labels"]))' "$MR_JSON")" "owner:you,needs:human-verify"
+run EX-1 nonsense >/dev/null && fail "an unknown mode is refused" || ok
 
 git -C "$TMP/web-app" switch -q staging
 run EX-1 >/dev/null && fail "the base branch is refused" || ok

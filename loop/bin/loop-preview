@@ -9,19 +9,21 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/us
 
 usage() {
   cat >&2 <<'USAGE'
-loop-preview runs the dev server of a Loop task's branch in its own herdr space,
-so the owner or the task's Worker can check the change in a browser.
+loop-preview runs the dev server of a Loop task's branch, so the owner or the
+task's Worker can check the change in a browser.
 
-  loop-preview <task>
+  loop-preview <task>         in its own herdr space "preview <task>"
+  loop-preview here <task>    in this terminal, in the foreground, with no herdr space
+  loop-preview stop <task>    stop either one
 
 It reads the task's repo and branch from loop-state, recreates the worktree at
 `loop-state path <repo> <task>` when the Worker's slot was freed, links the
-local files with wt-setup, and opens the space "preview <task>" running the
-repo's dev command. The dev command is LOOP_DEV_<repo key> in $LOOP_DIR/config.sh,
+local files with wt-setup, and runs the repo's dev command there. The dev command is LOOP_DEV_<repo key> in $LOOP_DIR/config.sh,
 with every character of the key that is not a letter or digit written as "_".
 
 It refuses when free memory is under 30% (FORCE=1 skips that check).
-Close the space to stop the server. /merge-approved removes the worktree.
+A session runs "here" as a background command to keep the server inside itself.
+"stop" keeps the worktree. /merge-approved removes the worktree.
 USAGE
   exit 2
 }
@@ -53,12 +55,70 @@ open_space() {
 print(json.dumps({"name": sys.argv[1], "folder": sys.argv[2], "tab": "preview", "argv": ["/bin/zsh", "-lc", sys.argv[3]]}))' \
     "$NAME" "$WT" "$DEV")
   if herdr-app status >/dev/null 2>&1 && herdr-app do space.new "$json" >/dev/null 2>&1; then return 0; fi
-  hc run --bg --name "$(echo "$NAME" | tr '[:upper:] ' '[:lower:]-')" --cwd "$WT" --no-parent -- /bin/zsh -lc "$DEV" >/dev/null 2>&1
+  hc run --bg --name "$BACKGROUND_NAME" --cwd "$WT" --no-parent -- /bin/zsh -lc "$DEV" >/dev/null 2>&1
 }
 
+close_space() {
+  local id
+  id=$(herdr-app ls 2>/dev/null | python3 -I -c 'import json, sys
+try:
+    spaces = json.load(sys.stdin).get("spaces", [])
+except ValueError:
+    spaces = []
+print(next((space["id"] for space in spaces if space.get("name") == sys.argv[1]), ""))' "$NAME")
+  if [ -n "$id" ]; then
+    herdr-app do space.close "$(python3 -I -c 'import json, sys
+print(json.dumps({"id": sys.argv[1], "confirmed": True}))' "$id")" >/dev/null 2>&1 && return 0
+  fi
+  hc kill "$BACKGROUND_NAME" >/dev/null 2>&1
+}
+
+server_pid() {
+  local pid dev
+  pid=$(sed -n 1p "$PID_FILE" 2>/dev/null)
+  dev=$(sed -n 2p "$PID_FILE" 2>/dev/null)
+  [ -n "$pid" ] && [ -n "$dev" ] && ps -o command= -p "$pid" 2>/dev/null | grep -qF -- "$dev" && echo "$pid"
+}
+
+kill_tree() {
+  local child
+  for child in $(pgrep -P "$1"); do kill_tree "$child"; done
+  kill "$1" 2>/dev/null
+}
+
+stop_preview() {
+  local pid stopped=0
+  if pid=$(server_pid); then
+    kill_tree "$pid"
+    rm -f "$PID_FILE"
+    echo "dev server of $TASK stopped"
+    stopped=1
+  fi
+  if space_is_open; then
+    close_space || die "could not close the herdr space '$NAME'"
+    echo "herdr space '$NAME' closed"
+    stopped=1
+  fi
+  [ "$stopped" = 1 ] || echo "no preview of $TASK is running"
+  exit 0
+}
+
+run_here() {
+  mkdir -p "$(dirname "$PID_FILE")"
+  printf '%s\n' $$ "$DEV" > "$PID_FILE"
+  cd "$WT" || die "could not enter $WT"
+  exec /bin/zsh -lc "$DEV"
+}
+
+ACTION=space
+case "${1:-}" in here|stop) ACTION="$1"; shift ;; esac
 [ $# -eq 1 ] || usage
 TASK="$1"
 case "$TASK" in ""|*/*|.*|-*) die "bad task key '$TASK'" ;; esac
+NAME="preview $TASK"
+BACKGROUND_NAME=$(echo "$NAME" | tr '[:upper:] ' '[:lower:]-')
+PID_FILE="$LOOP_DIR/state/preview-$TASK.pid"
+[ "$ACTION" = stop ] && stop_preview
 
 REPO=$("$STATE" get "$TASK" repo) || die "$TASK has no loop-state (repo unknown)"
 BRANCH=$("$STATE" get "$TASK" branch)
@@ -67,9 +127,12 @@ read -r MAIN _ < <("$STATE" repo "$REPO") || die "unknown repo '$REPO'"
 DEV_VAR="LOOP_DEV_$(echo "$REPO" | tr -c 'A-Za-z0-9\n' '_')"
 DEV="${!DEV_VAR:-}"
 [ -n "$DEV" ] || die "no dev command for $REPO (set $DEV_VAR in $CONFIG)"
-NAME="preview $TASK"
 WT=$("$STATE" path "$REPO" "$TASK") || die "no worktree path for $TASK"
 
+if server_pid >/dev/null; then
+  echo "dev server of $TASK is already running: $DEV in $WT"
+  exit 0
+fi
 if space_is_open; then
   echo "herdr space '$NAME' is already open: $DEV in $WT"
   exit 0
@@ -78,5 +141,6 @@ if [ "${FORCE:-0}" != 1 ] && memory_is_low; then
   die "free memory under 30% (close something, or run it with FORCE=1)"
 fi
 ensure_worktree
+[ "$ACTION" = here ] && run_here
 open_space || die "could not open a herdr space (herdr-app and hc both failed)"
 echo "herdr space '$NAME': $DEV in $WT"

@@ -12,6 +12,7 @@ usage() {
 loop-mr opens the Draft MR of a Loop task, or replaces the description of the one its branch already has.
 
   loop-mr <task> [e2e]
+  loop-mr <task> e2e-done
 
 Run it in the task's worktree. It reads $LOOP_DIR/state/mr-body-<task>.md:
 line 1 is "# <MR title>", the rest is the description in this shape:
@@ -21,6 +22,8 @@ line 1 is "# <MR title>", the rest is the description in this shape:
   ## Merge Danger   **Door:** one-way or two-way, and **Blast Radius:**
 
 "e2e" adds the label needs:e2e. A body that misses a part is refused and nothing is sent.
+"e2e-done" only removes needs:e2e from the task's open MR. It reads the branch from
+loop-state, so it runs from any folder.
 USAGE
   exit 2
 }
@@ -63,11 +66,33 @@ value = mr.get(sys.argv[1])
 print(",".join(value) if isinstance(value, list) else value)' "$1"
 }
 
+resolve_repo() {
+  REPO=$("$STATE" get "$TASK" repo) || die "$TASK has no loop-state (repo unknown)"
+  read -r _ BASE < <("$STATE" repo "$REPO") || die "unknown repo '$REPO'"
+  HOST=()
+  HOST_VAR="LOOP_GLAB_REPO_$(echo "$REPO" | tr -c 'A-Za-z0-9\n' '_')"
+  [ -n "${!HOST_VAR:-}" ] && HOST=(-R "${!HOST_VAR}")
+}
+
+remove_e2e_label() {
+  resolve_repo
+  BRANCH=$("$STATE" get "$TASK" branch)
+  [ -n "$BRANCH" ] || die "$TASK has no branch in loop-state"
+  IID=$(mr_field iid) || die "$BRANCH has no open MR"
+  glab mr update "$IID" ${HOST[@]+"${HOST[@]}"} --unlabel needs:e2e >/dev/null || die "could not update MR !$IID"
+  case ",$(mr_field labels)," in *",needs:e2e,"*) die "the MR of $BRANCH still has needs:e2e" ;; esac
+  echo "needs:e2e removed from $(mr_field web_url)"
+}
+
 [ $# -ge 1 ] && [ $# -le 2 ] || usage
 TASK="$1"
 case "$TASK" in ""|*/*|.*) die "bad task key '$TASK'" ;; esac
-[ "${2:-e2e}" = e2e ] || usage
-[ $# -eq 2 ] && LABELS="$LABELS,needs:e2e"
+case "${2:-}" in
+  "") ;;
+  e2e) LABELS="$LABELS,needs:e2e" ;;
+  e2e-done) remove_e2e_label; exit 0 ;;
+  *) usage ;;
+esac
 
 FILE="$LOOP_DIR/state/mr-body-$TASK.md"
 [ -s "$FILE" ] || die "$FILE is missing or empty"
@@ -77,15 +102,11 @@ trap 'rm -f "$BODY"' EXIT
 tail -n +2 "$FILE" | sed '/./,$!d' > "$BODY"
 check_body
 
-REPO=$("$STATE" get "$TASK" repo) || die "$TASK has no loop-state (repo unknown)"
-read -r _ BASE < <("$STATE" repo "$REPO") || die "unknown repo '$REPO'"
+resolve_repo
 BRANCH=$(git branch --show-current)
 case "$BRANCH" in
   ""|"$BASE"|main|master|staging|develop|production) die "refusing to open an MR from '${BRANCH:-detached HEAD}'" ;;
 esac
-HOST=()
-HOST_VAR="LOOP_GLAB_REPO_$(echo "$REPO" | tr -c 'A-Za-z0-9\n' '_')"
-[ -n "${!HOST_VAR:-}" ] && HOST=(-R "${!HOST_VAR}")
 
 if IID=$(mr_field iid); then
   glab mr update "$IID" ${HOST[@]+"${HOST[@]}"} --draft --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \

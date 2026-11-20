@@ -16,7 +16,8 @@ TICKETS="$LOOP_DIR/state/tickets"
 usage() {
   cat >&2 <<'USAGE'
 loop-clean owns every removal in $LOOP_DIR. It archives before it deletes and
-never touches a worktree or a task the Loop is still working on.
+never touches a task the Loop is still working on. It removes the worktree of a
+merged task once it is clean, unless the calling session runs inside it.
 
   loop-clean [--dry-run]                    sweep: merged tasks, approved candidates, expired files
   loop-clean [--dry-run] archive <task>...  archive the spec and design package of tasks closed outside the Loop
@@ -82,10 +83,29 @@ delete_merged_branch() {
   fi
 }
 
+remove_merged_worktree() {
+  local task="$1" repo branch wt main
+  repo=$("$STATE" get "$task" repo)
+  branch=$("$STATE" get "$task" branch)
+  [ -n "$repo" ] && [ -n "$branch" ] || return 0
+  wt=$("$STATE" path "$repo" "$task" 2>/dev/null)
+  [ -n "$wt" ] && [ -d "$wt" ] || return 0
+  wt=$(cd "$wt" && pwd -P)
+  case "$(pwd -P)/" in "$wt/"*) keep "$wt" "this session runs in it; the next loop-clean removes it"; return 0 ;; esac
+  [ "$(git -C "$wt" branch --show-current 2>/dev/null)" = "$branch" ] || { keep "$wt" "not on $branch"; return 0; }
+  [ -z "$(git -C "$wt" status --porcelain 2>/dev/null)" ] || { keep "$wt" "uncommitted changes"; return 0; }
+  main=$(cd "$wt" && cd "$(git rev-parse --git-common-dir)/.." && pwd)
+  say "$(verb remove) worktree $wt (merged task)"
+  removed=$((removed + 1))
+  [ "$dry" -eq 1 ] && return 0
+  git -C "$main" worktree remove "$wt" || keep "$wt" "git worktree remove failed"
+}
+
 sweep_merged() {
   local task file
   for task in $("$STATE" list merged | cut -d' ' -f1); do
     archive_task "$task"
+    remove_merged_worktree "$task"
     for file in "$LOOP_DIR/state/mr-draft-$task.md" "$LOOP_DIR/state/mr-body-$task.md"; do
       [ -f "$file" ] && remove "$file" "MR text of a merged task"
     done

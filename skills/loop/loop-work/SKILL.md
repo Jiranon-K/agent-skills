@@ -15,6 +15,7 @@ Read first: `~/loop/workspace.md` (tracker facts), the repo's section in `~/Home
 - Work only in the current directory. It must be the path `~/loop/bin/loop-state path <repo> <task>` prints; if not, stop blocked: `not in a loop worktree`.
 - Never read, print or edit `.env*`, `.npmrc` or any secret. Never touch production config or credentials. Write migrations as code if the task needs one, but never run a migration or backfill against a real database.
 - Never force-push, merge, rebase or reset. Push only with `~/loop/bin/loop-push` (no arguments: it pushes the current feature branch and refuses protected branches); plain `git push` is denied.
+- Never run `~/loop/bin/loop-merge` or `~/loop/bin/loop-clean` on your own, during the task or after it. They run only as steps of `/merge-approved <task>` when the owner types it in this session.
 - Stay in the task's scope. No unrelated refactors. Never touch another person's task or feature directory.
 - Run every heavy command (test suite, build, `./init.sh`, e2e) through `~/loop/bin/loop-heavy <command>`: other Workers share this 8 GB machine. Before you finish, make sure no test runner, headless browser or dev server you started is still running.
 - If the same verification fails after 2 fix attempts, stop blocked with the failing command and error summary.
@@ -90,7 +91,7 @@ The pstack skills live under `~/loop/pstack/skills/<name>/SKILL.md`. The `Skill`
 ☐ 1. <วิธีเช็คด้วยมือ ทำอะไร → ต้องเห็นอะไร>
 ☐ 2. ...
 <เฉพาะงานที่มี UI> เปิดดูใน browser → `~/loop/bin/loop-preview <task>` · เก็บ e2e ลง MR → /loop-e2e <task>
-ผ่าน → สั่ง /merge-approved <task> (เอา Draft ออกให้เอง) · ไม่ผ่าน → ปิด MR แล้วรับงานต่อเอง (หรือสั่ง Loop ให้แก้)
+ผ่าน → สั่ง /merge-approved <task> ใน session นี้หรือ session ไหนก็ได้ (เอา Draft ออกให้เอง) · ไม่ผ่าน → ปิด MR แล้วรับงานต่อเอง (หรือสั่ง Loop ให้แก้)
 MR (Draft): <url>
 ```
 
@@ -100,8 +101,9 @@ After the last `loop-state set` (any outcome), run `~/loop/bin/loop-next` so the
 
 ## After the handoff
 
-The session stays open and the owner may ask for more here. The worktree stays until `/merge-approved` removes it, and this session keeps its denied calls.
+The session stays open and the owner may ask for more here. The worktree stays until the task is merged and `loop-clean` removes it, and this session keeps its denied calls.
 
 - Asked to show the change in a browser: run `~/loop/bin/loop-preview here <task>` as a background command of this session. It uses this task's worktree (and recreates it only if it was removed by hand) and runs the repo's dev server inside this session. Say which URL to open (from the repo's docs) once it answers, and stop it with `~/loop/bin/loop-preview stop <task>` when the owner is done. Never ask the owner to grant Bash or to type git commands for this.
+- Asked to merge: the owner runs `/merge-approved <task>` here and you follow it. `loop-merge` keeps this worktree while this session runs in it; the next run's `loop-clean` removes it.
 - Asked for e2e evidence on the MR: the owner runs `/loop-e2e <task>` here and you follow it. Claude in Chrome is allowed for that request only: never open the browser on your own, during the task or after it.
 - Asked for a code change: make it here, in this worktree, with the same verify and review steps, then push it with `~/loop/bin/loop-push` (a repo the agent cannot push to: commit only and say so). If the worktree was removed, say so and that a new session in the path `loop-preview` printed can take it.

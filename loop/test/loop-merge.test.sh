@@ -48,8 +48,11 @@ cat > "$TMP/bin/glab" <<'GLAB'
 case "$1 $2" in
   "mr view")
     python3 -I -c '
-import json, subprocess, sys
+import json, os, subprocess, sys
 mr = json.load(open(sys.argv[1]))
+if os.path.exists(sys.argv[1] + ".merged"):
+    mr["state"] = "merged"
+    mr["merge_commit_sha"] = "abc123"
 head = subprocess.run(["git", "-C", sys.argv[2], "rev-parse", "-q", "--verify", "refs/heads/" + mr["source_branch"]], capture_output=True, text=True).stdout.strip()
 if head and subprocess.run(["git", "-C", sys.argv[2], "merge-base", "--is-ancestor", head, "staging"]).returncode == 0:
     mr["state"] = "merged"
@@ -63,6 +66,7 @@ mr["draft"] = False
 mr["labels"] = [label for label in mr["labels"] if label != "needs:human-verify"]
 json.dump(mr, open(sys.argv[1], "w"))' "$MR_JSON" ;;
   "api "*) cat "$THREADS" ;;
+  "mr merge") printf '%s\n' "$*" >> "$CALLS"; touch "$MR_JSON.merged" ;;
   *) printf '%s\n' "$*" >> "$CALLS" ;;
 esac
 GLAB
@@ -157,6 +161,14 @@ OUT=$(run EX-3)
 eq "a protected base exits non-zero" "$?" "1"
 has "a protected base sends the owner to the web" "$(printf '%s\n' "$OUT" | tail -n 1)" "refused: GitLab rejected the push to refs/heads/staging as protected"
 eq "a protected base leaves the base as it was" "$(git -C "$ORIGIN" rev-parse staging)" "$BASE_SHA"
+
+SELF_URL="https://git.example.com/team/web-app/-/merge_requests/7"
+"$LOOP_DIR/bin/loop-state" set EX-4 mr-open repo=web-app branch=feat/ex-3 mr="$SELF_URL"
+mr_json "owner:you,needs:human-verify"
+python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); m["source_branch"]="feat/ex-3"; json.dump(m, open(sys.argv[1],"w"))' "$MR_JSON"
+OUT=$(run EX-4)
+eq "a self-hosted merge names the merge commit" "$(printf '%s\n' "$OUT" | tail -n 1)" "merged abc123 $SELF_URL"
+has "a self-hosted merge sends the head sha" "$(cat "$CALLS")" "--sha $HEAD_SHA"
 
 echo "pass $PASS fail $FAIL"
 [ "$FAIL" -eq 0 ]

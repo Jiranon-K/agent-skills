@@ -189,8 +189,10 @@ merge_locally() {
 }
 
 merge_on_gitlab() {
-  local sha
-  glab mr merge "$IID" -R "$PROJECT" --squash --remove-source-branch --auto-merge=false --yes >&2 \
+  local sha head
+  head=$(mr_field sha)
+  [ -n "$head" ] || refuse "MR !$IID shows no head sha"
+  glab mr merge "$IID" -R "$PROJECT" --squash --remove-source-branch --auto-merge=false --sha "$head" --yes >&2 \
     || refuse "glab could not merge MR !$IID"
   wait_merged || refuse "MR !$IID is not merged after ${WAIT_SECONDS}s"
   sha=$(mr_field merge_commit_sha)

@@ -42,7 +42,7 @@ case "$1 $2" in
       shift
     done
     [ -n "$unlabel" ] && labels=$(python3 -I -c 'import json,sys; print(",".join(label for label in json.load(open(sys.argv[1]))["labels"] if label != sys.argv[2]))' "$MR_JSON" "$unlabel")
-    python3 -I -c 'import json,sys; print(json.dumps({"iid": 7, "state": "opened", "draft": True, "labels": sys.argv[1].split(","), "web_url": "https://git.example.com/mr/7"}))' "$labels" > "$MR_JSON" ;;
+    python3 -I -c 'import json,sys; print(json.dumps({"iid": 7, "state": "opened", "draft": True, "labels": sys.argv[1].split(","), "web_url": "http://10.0.0.1:3000/team/web-app/-/merge_requests/7"}))' "$labels" > "$MR_JSON" ;;
 esac
 GLAB
 chmod +x "$TMP/bin/glab"
@@ -72,7 +72,7 @@ write_body; sed -i '' 's/^## Evidence$/## Verification/' "$BODY"
 refused "a renamed section"
 
 write_body
-eq "a full body opens the MR and prints its link" "$(run EX-1)" "https://git.example.com/mr/7"
+eq "a full body opens the MR and prints its https link on the glab host" "$(run EX-1)" "https://git.example.com/team/web-app/-/merge_requests/7"
 has "the MR is created as a Draft" "$CALLS" "mr create -R git.example.com/team/web-app --draft"
 has "the MR targets the repo's base branch" "$CALLS" "--source-branch loop/ex-1 --target-branch staging"
 has "the title comes from line 1" "$CALLS" "--title feat(x): add the thing"
@@ -83,10 +83,13 @@ run EX-1 e2e >/dev/null
 has "a second run updates the same MR" "$CALLS" "mr update 7 -R git.example.com/team/web-app --draft"
 has "e2e adds its label" "$CALLS" "--label owner:you,needs:human-verify,needs:e2e"
 
-eq "e2e-done reports the MR it cleared" "$(cd "$TMP" && "$MR" EX-1 e2e-done 2>&1)" "needs:e2e removed from https://git.example.com/mr/7"
+eq "e2e-done reports the MR it cleared" "$(cd "$TMP" && "$MR" EX-1 e2e-done 2>&1)" "needs:e2e removed from https://git.example.com/team/web-app/-/merge_requests/7"
 has "e2e-done removes only the e2e label" "$CALLS" "mr update 7 -R git.example.com/team/web-app --unlabel needs:e2e"
 eq "e2e-done keeps the other labels" "$(python3 -I -c 'import json,sys; print(",".join(json.load(open(sys.argv[1]))["labels"]))' "$MR_JSON")" "owner:you,needs:human-verify"
 run EX-1 nonsense >/dev/null && fail "an unknown mode is refused" || ok
+
+printf 'LOOP_MR_LABELS="owner:you,needs:human-verify"\n' > "$LOOP_DIR/config.sh"
+eq "a repo without a glab host prints GitLab's own link" "$(run EX-1)" "http://10.0.0.1:3000/team/web-app/-/merge_requests/7"
 
 git -C "$TMP/web-app" switch -q staging
 run EX-1 >/dev/null && fail "the base branch is refused" || ok

@@ -81,6 +81,27 @@ resolve_repo() {
   [ -n "${!HOST_VAR:-}" ] && HOST=(-R "${!HOST_VAR}")
 }
 
+create_mr() {
+  [ -n "${!HOST_VAR:-}" ] || {
+    glab mr create --draft --yes --source-branch "$BRANCH" --target-branch "$BASE" \
+      --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null
+    return
+  }
+  local host="${!HOST_VAR%%/*}" project="${!HOST_VAR#*/}" payload status
+  payload=$(mktemp)
+  python3 -I -c '
+import json, sys
+branch, base, title, body, labels = sys.argv[1:]
+print(json.dumps({"source_branch": branch, "target_branch": base, "title": "Draft: " + title,
+                  "description": open(body).read(), "labels": labels}))' \
+    "$BRANCH" "$BASE" "$TITLE" "$BODY" "$LABELS" > "$payload"
+  glab api "projects/${project//\//%2F}/merge_requests" --hostname "$host" --method POST \
+    --header "Content-Type: application/json" --input "$payload" >/dev/null
+  status=$?
+  rm -f "$payload"
+  return "$status"
+}
+
 remove_e2e_label() {
   resolve_repo
   BRANCH=$("$STATE" get "$TASK" branch)
@@ -119,9 +140,7 @@ if IID=$(mr_field iid); then
   glab mr update "$IID" ${HOST[@]+"${HOST[@]}"} --draft --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \
     || die "could not update MR !$IID"
 else
-  glab mr create ${HOST[@]+"${HOST[@]}"} --draft --yes --source-branch "$BRANCH" --target-branch "$BASE" \
-    --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \
-    || die "could not open the MR for $BRANCH"
+  create_mr || die "could not open the MR for $BRANCH"
 fi
 
 [ "$(mr_field draft)" = True ] || die "the MR of $BRANCH is not a Draft"

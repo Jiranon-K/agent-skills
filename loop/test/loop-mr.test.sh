@@ -33,6 +33,11 @@ cat > "$TMP/bin/glab" <<'GLAB'
 #!/bin/bash
 case "$1 $2" in
   "mr view") cat "$MR_JSON" 2>/dev/null || exit 1 ;;
+  "api projects/"*)
+    printf '%s\n' "$*" >> "$CALLS"
+    while [ $# -gt 0 ]; do [ "$1" = "--input" ] && payload="$2"; shift; done
+    cat "$payload" >> "$CALLS"
+    python3 -I -c 'import json,sys; print(json.dumps({"iid": 7, "state": "opened", "draft": json.load(open(sys.argv[1]))["title"].startswith("Draft: "), "labels": json.load(open(sys.argv[1]))["labels"].split(","), "web_url": "http://10.0.0.1:3000/team/web-app/-/merge_requests/7"}))' "$payload" > "$MR_JSON" ;;
   "mr create"|"mr update")
     printf '%s\n' "$*" >> "$CALLS"
     labels="" unlabel=""
@@ -73,11 +78,11 @@ refused "a renamed section"
 
 write_body
 eq "a full body opens the MR and prints its https link on the glab host" "$(run EX-1)" "https://git.example.com/team/web-app/-/merge_requests/7"
-has "the MR is created as a Draft" "$CALLS" "mr create -R git.example.com/team/web-app --draft"
-has "the MR targets the repo's base branch" "$CALLS" "--source-branch loop/ex-1 --target-branch staging"
-has "the title comes from line 1" "$CALLS" "--title feat(x): add the thing"
-has "the labels come from the config" "$CALLS" "--label owner:you,needs:human-verify"
-grep -q '^# feat' "$CALLS" && fail "the title line stays out of the description" || ok
+has "a repo on a glab host is created through the API, not from its git remotes" "$CALLS" "api projects/team%2Fweb-app/merge_requests --hostname git.example.com --method POST --header Content-Type: application/json"
+has "the MR targets the repo's base branch" "$CALLS" '"source_branch": "loop/ex-1", "target_branch": "staging"'
+has "the MR is created as a Draft with the title from line 1" "$CALLS" '"title": "Draft: feat(x): add the thing"'
+has "the labels come from the config" "$CALLS" '"labels": "owner:you,needs:human-verify"'
+grep -q '# feat' "$CALLS" && fail "the title line stays out of the description" || ok
 
 run EX-1 e2e >/dev/null
 has "a second run updates the same MR" "$CALLS" "mr update 7 -R git.example.com/team/web-app --draft"

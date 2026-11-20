@@ -1,0 +1,217 @@
+#!/bin/bash
+set -u
+
+LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
+STATE="$LOOP_DIR/bin/loop-state"
+[ -f "$LOOP_DIR/config.sh" ] && . "$LOOP_DIR/config.sh"
+LOCAL_MERGE_HOST="${LOOP_LOCAL_MERGE_HOST:-gitlab.com}"
+CO_AUTHOR="${LOOP_CO_AUTHOR:-Claude Opus 5.5 <noreply@anthropic.com>}"
+WAIT_SECONDS="${LOOP_MERGE_WAIT:-60}"
+OWNER_LABEL=$(printf '%s\n' "${LOOP_MR_LABELS:-}" | tr ',' '\n' | grep -m1 '^owner:')
+
+usage() {
+  cat >&2 <<'USAGE'
+loop-merge merges the open MR of one Loop task the way /merge-approved does, and nothing else.
+
+  loop-merge <task>             check the gates, mark the MR ready, merge it
+  loop-merge --dry-run <task>   check the gates only; change nothing
+
+It reads repo, branch and MR from loop-state and needs status=mr-open.
+The last line is "merged <merge sha> <MR URL>" or "refused: <reason>".
+USAGE
+  exit 2
+}
+
+say() { echo "loop-merge: $*" >&2; }
+refuse() { echo "refused: $*"; exit 1; }
+
+cleanup() {
+  [ -d "${WORK:-}" ] && { git -C "$MAIN" worktree remove --force "$WORK" >/dev/null 2>&1 || say "could not remove $WORK"; }
+  [ -d "${TMP:-}" ] && rm -rf "$TMP"
+  [ -n "${MAIN:-}" ] && git -C "$MAIN" worktree prune
+}
+
+read_state() {
+  local status
+  status=$("$STATE" get "$TASK" status) || refuse "$TASK has no loop-state"
+  [ "$status" = mr-open ] || refuse "$TASK is ${status:-unknown}, not mr-open"
+  REPO=$("$STATE" get "$TASK" repo)
+  BRANCH=$("$STATE" get "$TASK" branch)
+  MR_URL=$("$STATE" get "$TASK" mr)
+  [ -n "$REPO" ] && [ -n "$BRANCH" ] && [ -n "$MR_URL" ] || refuse "$TASK lacks repo, branch or mr in loop-state"
+  read -r MAIN BASE < <("$STATE" repo "$REPO") || refuse "unknown repo '$REPO'"
+  [ -d "$MAIN" ] && [ -n "$BASE" ] || refuse "no main checkout for $REPO"
+  case "$BRANCH" in
+    "$BASE"|main|master|staging|develop|production|release/*|hotfix/*) refuse "refusing to merge from '$BRANCH'" ;;
+  esac
+}
+
+parse_mr_url() {
+  local rest host_var
+  case "$MR_URL" in https://*/-/merge_requests/*) ;; *) refuse "loop-state mr is not a GitLab MR URL: $MR_URL" ;; esac
+  rest="${MR_URL#https://}"
+  HOST="${rest%%/*}"
+  IID="${rest##*/merge_requests/}"
+  PROJECT_PATH="${rest#*/}"
+  PROJECT_PATH="${PROJECT_PATH%%/-/*}"
+  case "$IID" in ""|*[!0-9]*) refuse "bad MR number in $MR_URL" ;; esac
+  host_var="LOOP_GLAB_REPO_$(echo "$REPO" | tr -c 'A-Za-z0-9\n' '_')"
+  PROJECT="${!host_var:-$HOST/$PROJECT_PATH}"
+}
+
+load_mr() {
+  glab mr view "$IID" -R "$PROJECT" -F json > "$TMP/mr.json" 2>/dev/null || refuse "could not read MR !$IID of $PROJECT"
+}
+
+mr_field() {
+  python3 -I -c '
+import json, sys
+value = json.load(open(sys.argv[1]))
+for key in sys.argv[2].split("."):
+    value = value.get(key) if isinstance(value, dict) else None
+if isinstance(value, list):
+    value = ",".join(value)
+print("" if value is None else value)' "$TMP/mr.json" "$1"
+}
+
+count_unresolved() {
+  glab api "projects/$(mr_field project_id)/merge_requests/$IID/discussions" --hostname "$HOST" \
+    --paginate --output ndjson > "$TMP/threads.ndjson" 2>/dev/null || return 1
+  python3 -I -c '
+import json, sys
+count = 0
+for line in open(sys.argv[1]):
+    if line.strip():
+        notes = json.loads(line).get("notes") or []
+        count += any(note.get("resolvable") and not note.get("resolved") for note in notes)
+print(count)' "$TMP/threads.ndjson"
+}
+
+check_merge_back() {
+  local pending
+  git -C "$MAIN" fetch -q origin "+refs/heads/master:refs/remotes/origin/master" "+refs/heads/staging:refs/remotes/origin/staging" \
+    || refuse "could not fetch master and staging of $REPO"
+  pending=$(git -C "$MAIN" rev-list --count refs/remotes/origin/staging..refs/remotes/origin/master) || refuse "could not count the merge-back"
+  [ "$pending" = 0 ] || refuse "merge-back pending: master has $pending commit(s) not in staging; wait for the merge-back"
+}
+
+check_gates() {
+  local labels unresolved
+  [ "$(mr_field state)" = opened ] || refuse "MR !$IID is $(mr_field state), not open"
+  [ "$(mr_field source_branch)" = "$BRANCH" ] || refuse "MR !$IID is from $(mr_field source_branch), loop-state says $BRANCH"
+  [ "$(mr_field target_branch)" = "$BASE" ] || refuse "MR !$IID targets $(mr_field target_branch), not $BASE"
+  [ -n "$OWNER_LABEL" ] || refuse "LOOP_MR_LABELS in config.sh has no owner: label"
+  labels=",$(mr_field labels),"
+  case "$labels" in *",$OWNER_LABEL,"*) ;; *) refuse "MR !$IID lacks the label $OWNER_LABEL" ;; esac
+  case "$labels" in *",needs:e2e,"*) refuse "MR !$IID still has needs:e2e: run /loop-e2e $TASK first" ;; esac
+  [ "$(mr_field head_pipeline.status)" != failed ] || refuse "the head pipeline of MR !$IID failed"
+  unresolved=$(count_unresolved) || refuse "could not read the threads of MR !$IID"
+  [ "$unresolved" = 0 ] || refuse "MR !$IID has $unresolved unresolved thread(s)"
+  [ "$REPO" != "${RELEASE_REPO:-}" ] || check_merge_back
+}
+
+mark_ready() {
+  glab mr update "$IID" -R "$PROJECT" --ready --unlabel needs:human-verify >/dev/null || refuse "could not mark MR !$IID ready"
+  load_mr
+  [ "$(mr_field draft)" = False ] || refuse "MR !$IID is still a Draft"
+}
+
+wait_merged() {
+  local waited=0
+  while :; do
+    load_mr
+    [ "$(mr_field state)" = merged ] && return 0
+    [ "$waited" -ge "$WAIT_SECONDS" ] && return 1
+    sleep 5
+    waited=$((waited + 5))
+  done
+}
+
+push_ref() {
+  local sha="$1" ref="$2" lease="${3:-}" out
+  out=$(git -C "$WORK" push ${lease:+"--force-with-lease=$ref:$lease"} origin "$sha:$ref" 2>&1) && return 0
+  printf '%s\n' "$out" >&2
+  case "$out" in
+    *protected*|*"not allowed to push"*)
+      refuse "GitLab rejected the push to $ref as protected: merge MR !$IID on the web (it will show the shared account's name)" ;;
+  esac
+  refuse "the push to $ref was rejected; run loop-merge $TASK again once origin is settled"
+}
+
+delete_branch() {
+  local squash="$1"
+  git -C "$WORK" ls-remote --exit-code -q origin "refs/heads/$BRANCH" >/dev/null 2>&1 || return 0
+  git -C "$WORK" push -q --force-with-lease="refs/heads/$BRANCH:$squash" origin ":refs/heads/$BRANCH" >&2 \
+    || say "could not delete $BRANCH on origin"
+}
+
+close_unmerged() {
+  local merge="$1"
+  glab mr note create "$IID" -R "$PROJECT" --resolvable=false -m "Merged locally as $merge" >/dev/null || say "could not post the note on MR !$IID"
+  glab mr close "$IID" -R "$PROJECT" >/dev/null || say "could not close MR !$IID"
+  say "MR !$IID was not merged after ${WAIT_SECONDS}s: closed it with a note and kept $BRANCH on origin"
+}
+
+squash_title() {
+  TITLE=$(mr_field title | sed -e 's/^Draft: *//' -e 's/^\[Draft\] *//' -e 's/^(Draft) *//')
+  echo "$TITLE" | grep -Eq '^[a-z]+(\([^)]+\))?!?: .+' || refuse "the MR title is not a Conventional Commit: $TITLE"
+}
+
+squash_branch() {
+  local conflicts
+  WORK="$TMP/merge"
+  git -C "$MAIN" worktree add -q --detach "$WORK" "refs/remotes/origin/$BASE" >&2 || refuse "could not add a temporary worktree"
+  if ! git -C "$WORK" merge -q --squash "refs/remotes/origin/$BRANCH" >&2; then
+    conflicts=$(git -C "$WORK" diff --name-only --diff-filter=U | paste -sd ' ' -)
+    refuse "squash conflicts in: ${conflicts:-unknown files}; resolve them on $BRANCH first"
+  fi
+  git -C "$WORK" diff --cached --quiet && refuse "$BRANCH has nothing to merge into $BASE"
+  git -C "$WORK" commit -q --no-verify -m "$TITLE" -m "Co-Authored-By: $CO_AUTHOR" >&2 || refuse "could not commit the squash"
+  SQUASH=$(git -C "$WORK" rev-parse HEAD)
+}
+
+merge_locally() {
+  local old merge
+  squash_title
+  git -C "$MAIN" fetch -q origin "+refs/heads/$BASE:refs/remotes/origin/$BASE" "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" \
+    || refuse "could not fetch $BASE and $BRANCH"
+  old=$(git -C "$MAIN" rev-parse --verify -q "refs/remotes/origin/$BRANCH^{commit}") || refuse "$BRANCH is not on origin"
+  [ "$old" = "$(mr_field sha)" ] || refuse "origin/$BRANCH is at $old but MR !$IID shows $(mr_field sha)"
+  squash_branch
+  push_ref "$SQUASH" "refs/heads/$BRANCH" "$old"
+  git -C "$WORK" checkout -q --detach "refs/remotes/origin/$BASE" || refuse "could not check out origin/$BASE"
+  git -C "$WORK" merge -q --no-ff --no-verify "$SQUASH" -m "Merge branch '$BRANCH' into '$BASE'" -m "$TITLE" \
+    -m "See merge request $PROJECT_PATH!$IID" >&2 || refuse "could not make the merge commit"
+  merge=$(git -C "$WORK" rev-parse HEAD)
+  push_ref "$merge" "refs/heads/$BASE"
+  if wait_merged; then delete_branch "$SQUASH"; else close_unmerged "$merge"; fi
+  echo "merged $merge $MR_URL"
+}
+
+merge_on_gitlab() {
+  local sha head
+  head=$(mr_field sha)
+  [ -n "$head" ] || refuse "MR !$IID shows no head sha"
+  glab mr merge "$IID" -R "$PROJECT" --squash --remove-source-branch --auto-merge=false --sha "$head" --yes >&2 \
+    || refuse "glab could not merge MR !$IID"
+  wait_merged || refuse "MR !$IID is not merged after ${WAIT_SECONDS}s"
+  sha=$(mr_field merge_commit_sha)
+  [ -n "$sha" ] || sha=$(mr_field squash_commit_sha)
+  echo "merged ${sha:-unknown} $MR_URL"
+}
+
+dry=0
+[ "${1:-}" = "--dry-run" ] && { dry=1; shift; }
+[ $# -eq 1 ] || usage
+TASK="$1"
+case "$TASK" in ""|*/*|.*|-*) refuse "bad task key '$TASK'" ;; esac
+
+TMP=$(mktemp -d) || refuse "could not make a temporary folder"
+trap cleanup EXIT
+read_state
+parse_mr_url
+load_mr
+check_gates
+[ "$dry" -eq 1 ] && { echo "would merge $MR_URL into $BASE"; exit 0; }
+mark_ready
+if [ "$HOST" = "$LOCAL_MERGE_HOST" ]; then merge_locally; else merge_on_gitlab; fi

@@ -231,6 +231,8 @@ WORKER_ALLOW=(
   "Bash(~/loop/bin/loop-push)" "Bash($HOME/loop/bin/loop-push)"
   "Bash(~/loop/bin/loop-mr:*)" "Bash($HOME/loop/bin/loop-mr:*)"
   "Bash(~/loop/bin/loop-upload:*)" "Bash($HOME/loop/bin/loop-upload:*)"
+  "Bash(~/loop/bin/loop-merge:*)" "Bash($HOME/loop/bin/loop-merge:*)"
+  "Bash(~/loop/bin/loop-clean)" "Bash($HOME/loop/bin/loop-clean)"
   "Bash(yarn:*)" "Bash(npm:*)" "Bash(npx:*)" "Bash(node:*)" "Bash(bun:*)" "Bash(go:*)" "Bash(make:*)"
   "Bash(uv:*)" "Bash(python3:*)" "Bash(./init.sh:*)" "Bash(./scripts/:*)" "Bash(.harness/scripts/:*)"
   "Bash(glab mr view:*)" "Bash(glab mr note:*)"

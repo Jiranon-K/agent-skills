@@ -66,6 +66,13 @@ value = mr.get(sys.argv[1])
 print(",".join(value) if isinstance(value, list) else value)' "$1"
 }
 
+mr_url() {
+  local iid
+  [ -n "${!HOST_VAR:-}" ] || { mr_field web_url; return; }
+  iid=$(mr_field iid) || return 1
+  echo "https://${!HOST_VAR}/-/merge_requests/$iid"
+}
+
 resolve_repo() {
   REPO=$("$STATE" get "$TASK" repo) || die "$TASK has no loop-state (repo unknown)"
   read -r _ BASE < <("$STATE" repo "$REPO") || die "unknown repo '$REPO'"
@@ -81,7 +88,7 @@ remove_e2e_label() {
   IID=$(mr_field iid) || die "$BRANCH has no open MR"
   glab mr update "$IID" ${HOST[@]+"${HOST[@]}"} --unlabel needs:e2e >/dev/null || die "could not update MR !$IID"
   case ",$(mr_field labels)," in *",needs:e2e,"*) die "the MR of $BRANCH still has needs:e2e" ;; esac
-  echo "needs:e2e removed from $(mr_field web_url)"
+  echo "needs:e2e removed from $(mr_url)"
 }
 
 [ $# -ge 1 ] && [ $# -le 2 ] || usage
@@ -122,4 +129,4 @@ SET_LABELS=",$(mr_field labels),"
 for LABEL in ${LABELS//,/ }; do
   case "$SET_LABELS" in *",$LABEL,"*) ;; *) die "the MR of $BRANCH lacks the label $LABEL" ;; esac
 done
-mr_field web_url
+mr_url

@@ -88,6 +88,24 @@ eq "a bad key is refused" "$(grep -c '^kept ../x' "$TMP/out.txt")" "1"
 "$CLEAN" archive EX-5 >/dev/null
 exists "a design in progress is not archived" "$LOOP_DIR/designs/EX-5"
 
+WT6="$TMP/web-app/.claude/worktrees/EX-6"
+WT7="$TMP/web-app/.claude/worktrees/EX-7"
+git -C "$TMP/web-app" worktree add -q -b feat/ex-6 "$WT6" staging
+git -C "$TMP/web-app" worktree add -q -b feat/ex-7 "$WT7" staging
+echo dirty > "$WT7/dirty.txt"
+"$BIN/loop-state" set EX-6 merged repo=web-app branch=feat/ex-6
+"$BIN/loop-state" set EX-7 merged repo=web-app branch=feat/ex-7
+(cd "$WT6" && "$CLEAN") > "$TMP/out.txt"
+exists "a session inside the worktree keeps it" "$WT6"
+eq "the kept worktree is reported" "$(grep -c 'this session runs in it' "$TMP/out.txt")" "1"
+"$CLEAN" > "$TMP/out.txt"
+gone "a clean worktree of a merged task is removed" "$WT6"
+exists "a worktree with uncommitted changes is kept" "$WT7/dirty.txt"
+"$BIN/loop-state" set EX-2 working repo=web-app branch=feat/ex-2
+git -C "$TMP/web-app" worktree add -q -b feat/ex-2 "$TMP/web-app/.claude/worktrees/EX-2" staging
+"$CLEAN" >/dev/null
+exists "a working task keeps its worktree" "$TMP/web-app/.claude/worktrees/EX-2"
+
 echo log > "$LOOP_DIR/logs/2020-01-01.md"
 echo log > "$LOOP_DIR/logs/today.md"
 echo log > "$LOOP_DIR/logs/launchd.log"

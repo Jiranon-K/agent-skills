@@ -1,6 +1,6 @@
 ---
 name: loop-work
-description: Worker of the Loop Engineering system. Runs in its own Claude Code background session inside a prepared git worktree, takes one Workspace task end to end — claim, implement against the approved design with Sonnet subagents, verify, review by findings that a run proves, fix, Draft MR with evidence, handoff comment — and records state with loop-state. Started by ~/loop/bin/loop-run.sh; usage `/loop-work <task key> <repo key> <risk>`.
+description: Worker of the Loop Engineering system. Runs in its own Claude Code session, in an Orca terminal inside a prepared git worktree, takes one Workspace task end to end — claim, implement against the approved design with Sonnet subagents, verify, review by findings that a run proves, fix, Draft MR with evidence, handoff comment — and records state with loop-state. Started by ~/loop/bin/loop-run.sh; usage `/loop-work <task key> <repo key> <risk>`.
 ---
 
 # Loop Worker
@@ -19,7 +19,8 @@ Read first: `~/loop/workspace.md` (tracker facts), the repo's section in `~/Home
 - Stay in the task's scope. No unrelated refactors. Never touch another person's task or feature directory.
 - Run every heavy command (test suite, build, `./init.sh`, e2e) through `~/loop/bin/loop-heavy <command>`: other Workers share this 8 GB machine. Before you finish, make sure no test runner, headless browser or dev server you started is still running.
 - If the same verification fails after 2 fix attempts, stop blocked with the failing command and error summary.
-- Nobody answers a permission prompt here: a call outside the allowed set is denied. Use `Read`, `Grep`, `Glob`, `Edit` and `Write` for files. In the shell send one plain command per call with every path written out: no shell variables, no `$(...)`, no `;`, `&&` or `|`, no `cd`, no `git -C`. Do not repeat a denied call; reach the same end with an allowed tool, and when the work cannot go on without it, stop blocked with `needs permission: <the exact tool or command>`.
+- This session asks for no permission, and a few calls are denied outright: `git push`, `git -C`, `git reset|rebase|merge|clean`, `rm -rf`, `glab mr create|update|merge|approve`, `loop-spec approve|part`, any `.env*` or `.npmrc`, and `WebFetch`. Do not repeat a denied call or reach the same end another way; when the work cannot go on without it, stop blocked with `needs permission: <the exact tool or command>`. Everything else is yours to run, so stay inside this worktree and `~/loop`: never write to the main checkout or another worktree.
+- If git says `index.lock` exists, run `~/loop/bin/loop-state unlock <task>` once; if it refuses, stop blocked.
 - Log each decision point with `~/loop/bin/loop-spec log <task> <phase> <decision> <why> <evidence> <result>`: a fork chosen, a unit finished with its check, a deviation from the sketch, a finding kept or dropped, a revert. Plain words; evidence is a commit SHA, a `file:line` or a command. Not every action: only what a reviewer would ask "why" about.
 - Workspace writes: only this task, through `start_work`, `update_work_state`, `transition_task`, `add_task_link`, `add_comment`, `finish_work`, and `update_task` for labels (replace-all: keep every existing label). Never write the description, title, assignee or priority.
 
@@ -101,9 +102,9 @@ After the last `loop-state set` (any outcome), run `~/loop/bin/loop-next` so the
 
 ## After the handoff
 
-The session stays open and the owner may ask for more here. The worktree stays until the task is merged and `loop-clean` removes it, and this session keeps its denied calls.
+The session stays open in its Orca terminal and the owner may ask for more here, from the desktop or the phone. When more sessions are open than the Worker limit, the runner closes the one idle longest; `claude --resume <session id from loop-state>` in this worktree opens it again. The worktree stays until the task is merged and `loop-clean` removes it, and this session keeps its denied calls.
 
 - Asked to show the change in a browser: run `~/loop/bin/loop-preview here <task>` as a background command of this session. It uses this task's worktree (and recreates it only if it was removed by hand) and runs the repo's dev server inside this session. Say which URL to open (from the repo's docs) once it answers, and stop it with `~/loop/bin/loop-preview stop <task>` when the owner is done. Never ask the owner to grant Bash or to type git commands for this.
 - Asked to merge: the owner runs `/merge-approved <task>` here and you follow it. `loop-merge` keeps this worktree while this session runs in it; the next run's `loop-clean` removes it.
 - Asked for e2e evidence on the MR: the owner runs `/loop-e2e <task>` here and you follow it. Claude in Chrome is allowed for that request only: never open the browser on your own, during the task or after it.
-- Asked for a code change: make it here, in this worktree, with the same verify and review steps, then push it with `~/loop/bin/loop-push` (a repo the agent cannot push to: commit only and say so). If the worktree was removed, say so and that a new session in the path `loop-preview` printed can take it.
+- Asked for a code change: make it here, in this worktree, with the same verify and review steps, then push it with `~/loop/bin/loop-push` (a repo the agent cannot push to: commit only and say so) and add one MR note with `glab mr note` that says what changed and how it was checked. If the worktree was removed, say so and that a new session in the path `loop-preview` printed can take it.

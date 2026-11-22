@@ -5,6 +5,7 @@ REPO="$(pwd)"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+export LOOP_ORCA=off
 export LOOP_DIR="$TMP/loop" LOOP_MERGE_WAIT=0
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 

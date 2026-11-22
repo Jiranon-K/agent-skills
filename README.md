@@ -30,13 +30,12 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 
 | Folder | Count | Holds |
 | :--- | :--- | :--- |
-| **[skills/](skills)** | 22 | engineering, productivity, design, loop, personal |
+| **[skills/](skills)** | 23 | engineering, productivity, design, loop, personal |
 | **[claude/agents/](claude/agents)** | 53 | subagents grouped by category |
 | **[claude/rules/](claude/rules)** | 8 | code style, testing, self-improvement, explanation style, worktree commands, pstack in Thai, pstack models, pstack cross-vendor seat |
 | **[plugins.md](plugins.md)** | 9 | installed with `claude plugin`, not copied |
-| **[loop/](loop)** | — | Loop Engineering runner and launchd job |
-| **[scheduled/](scheduled)** | 3 | daily-standup, loop-summary, loop-reflect |
-| **[herdr/](herdr)** | — | terminal multiplexer configs |
+| **[loop/](loop)** | — | Loop Engineering runner and its scripts |
+| **[scheduled/](scheduled)** | 1 | daily-standup |
 | **[docs/prompting-patterns.md](docs/prompting-patterns.md)** | 11 | copy-paste prompts (reference, not loaded) |
 
 <details>
@@ -55,7 +54,8 @@ To talk to the team: `/reply`, `/blocker-ping` and `/be-review`. Run `/team-cont
 | design | `ui-ux-pro-max` | Searchable styles, palettes, fonts, UX rules |
 | personal | `ui-inspire` | Researches UI patterns, then designs an original UI |
 | personal | `dev-challenge-generator` | Frontend Mentor-style portfolio challenges |
-| loop | `loop-triage`, `loop-design`, `loop-work`, `loop-review` | Coordinator, designer (architect sketch and proposed spec), worker (one Claude Code background session per task) and reviewer |
+| loop | `loop-triage`, `loop-design`, `loop-work`, `loop-review` | Coordinator, designer (architect sketch and proposed spec), worker (one Claude Code session per task, in an Orca terminal) and reviewer |
+| loop | `loop-start` | Starts a round of the Loop, or one task, on command; pauses and resumes the chain |
 | loop | `loop-summary` | Shows summaries since last run |
 | loop | `loop-board`, `loop-explain` | Read-only views: every task by stage (box art in chat), and one task explained from its record |
 | loop | `loop-design-review`, `merge-approved`, `loop-e2e` | Human gates: approve the design, merge the MR, browser e2e by hand when the Worker could not run it |
@@ -90,7 +90,7 @@ git clone git@github.com:Jiranon-K/agent-skills.git ~/Projects/agent-skills
 
 `--force` replaces existing generic skills only, moving the old ones to `~/.claude/backups/`. Then install the plugins in [plugins.md](plugins.md) and run `/team-context` once per team.
 
-For [herdr](https://herdr.dev): `brew install herdr`, `herdr integration install claude`, and `brew install --cask herdr-app`. `install.sh` links both configs.
+The Loop opens its sessions in [Orca](https://orca.dev): install the app, then add each repo of `~/loop/repos` with `orca repo add --path <checkout>` and `orca repo set --repo path:<checkout> --external-worktree-visibility show`.
 
 ## Setup after install
 
@@ -103,25 +103,18 @@ For [herdr](https://herdr.dev): `brew install herdr`, `herdr integration install
 | `workspace.example.com`, `APP-*`, `PB-*` | your Workspace tracker URL and space keys (`~/loop/workspace.md`) |
 | `project-a` / `web-app`, `project-b` / `project-b-web`, `project-b-api` | your workspace folders and repos |
 | `owner:you`, `your.username`, `@you` | your MR label and usernames |
-| `/Users/YOUR_USER` | your home folder (launchd does not expand `~`) |
 
 </details>
 
 ## Loop Engineering
 
-<p align="center"><img src="docs/assets/loop.svg" alt="Loop Engineering: at 09:15 launchd runs loop-triage, then opens one Claude Code background session per picked task running loop-work with an independent loop-reviewer; at 09:30 loop-summary; then you verify the Draft MR and run loop-e2e and merge-approved" width="100%"></p>
+<p align="center"><img src="docs/assets/loop.svg" alt="Loop Engineering: /loop-start runs loop-triage, then opens one Claude Code session in Orca per picked task running loop-work with an independent loop-reviewer, and shows the summary; then you verify the Draft MR and run loop-e2e and merge-approved" width="100%"></p>
 
-Logs, state and summaries stay in `~/loop` and are not committed. To schedule it, copy `loop/launchd/com.example.loop.plist` to `~/Library/LaunchAgents/`, fix its paths, then:
-
-```bash
-launchctl load ~/Library/LaunchAgents/com.example.loop.plist
-```
+Logs, state and summaries stay in `~/loop` and are not committed. Nothing in the Loop runs on a timer: type `/loop-start` to run a round, `/loop-start <task>` for one task. When a session ends or a design is approved, `loop-next` starts the next round by itself until `/loop-start stop`. Sessions ask for no permission and carry a deny list (`WORKER_DENY`, `DESIGNER_DENY` in `loop/bin/loop-run.sh`).
 
 | Scheduled task | When | What |
 | --- | --- | --- |
 | `daily-standup` | 17:47 Mon–Fri | Standup for Discord from the day's sessions and git activity |
-| `loop-summary` | 09:30 daily | Shows new loop summaries |
-| `loop-reflect` | Friday 16:00 | Proposes edits to the loop skills from the week's runs |
 
 ---
 

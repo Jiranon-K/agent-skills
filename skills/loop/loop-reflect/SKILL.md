@@ -1,6 +1,6 @@
 ---
 name: loop-reflect
-description: Weekly learning pass of the Loop Engineering system. Reads the week's Worker and Designer sessions, blocked reasons, design pushbacks and dropped review findings, and proposes concrete edits to the loop skills for the owner to approve. Never edits a skill without approval. Run by the app's scheduled task "loop-reflect" on Fridays, or `/loop-reflect [<days>]`.
+description: Weekly learning pass of the Loop Engineering system. Reads the week's Worker and Designer sessions, blocked reasons, design pushbacks and dropped review findings, and proposes concrete edits to the loop skills for the owner to approve. Never edits a skill without approval. Run by the owner, usually on Fridays: `/loop-reflect [<days>]`.
 ---
 
 # Loop reflect
@@ -21,8 +21,8 @@ Give steps 3–5 to subagents, one per task, and keep only their findings: each 
 
 Follow the pstack **reflect** skill's stance (`~/loop/pstack/skills/reflect/SKILL.md`; the `Skill` tool refuses it, so `Read` it): one-offs are not learnings. Keep a finding only when it happened on two or more tasks, or once with a cost of a redo or a wrong MR. For each kept finding decide where the fix belongs, in this order:
 
-1. A script or permission that makes the mistake impossible (`loop-spec`, `loop-state`, the allowlists in `loop-run.sh`).
-   A denied call seen on two or more tasks, or one that blocked a task, becomes a proposal: add the narrowest matching rule to `WORKER_ALLOW` or `DESIGNER_ALLOW` when the call is safe unattended (name the rule and what it lets through), else a skill line that names the allowed way. Never propose a rule that lets a session push, merge, approve a spec or read a secret.
+1. A script or permission that makes the mistake impossible (`loop-spec`, `loop-state`, the deny lists in `loop-run.sh`).
+   Sessions ask for no permission, so the lists are `WORKER_DENY` and `DESIGNER_DENY`. A session that did something it should not have (wrote outside its worktree, changed a shared file, ran a destructive command) on two or more tasks, or once with a cost, becomes a proposal: add the narrowest deny rule (name the rule and what it stops). A denied call that blocked a task becomes a skill line that names the allowed way, or a script with its own guard. Never propose a rule that lets a session push, merge, approve a spec or read a secret.
 2. A line in one loop skill (`loop-triage`, `loop-design`, `loop-work`, `loop-review`).
 3. A line in a repo's own docs or `~/Home/docs/repo-map.md` when the lesson is about that repo.
 

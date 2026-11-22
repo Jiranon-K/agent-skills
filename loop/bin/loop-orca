@@ -1,0 +1,75 @@
+#!/bin/bash
+set -u
+
+ORCA="${LOOP_ORCA:-/Applications/Orca.app/Contents/Resources/bin/orca}"
+
+usage() {
+  cat >&2 <<'USAGE'
+loop-orca is the one place the Loop talks to the Orca app. LOOP_ORCA=off turns every call into a no-op.
+
+  loop-orca up                                    open Orca and wait until it answers
+  loop-orca launch <name> <folder> <script>       open a terminal named <name> in <folder> that runs <script>
+  loop-orca alive <folder>                        exit 0 and print the newest update time when an agent runs in <folder>
+  loop-orca mark <folder> <status> <comment> [mr] set the workspace status, comment and GitLab MR of <folder>
+  loop-orca close <folder>                        close the agent terminals of <folder>; other terminals stay
+USAGE
+  exit 2
+}
+
+die() { echo "loop-orca: $*" >&2; exit 1; }
+succeeded() { python3 -I -c 'import json, sys
+sys.exit(0 if json.load(sys.stdin).get("ok") else 1)' 2>/dev/null; }
+
+cmd_up() {
+  [ $# -eq 0 ] || usage
+  "$ORCA" open --json 2>/dev/null | succeeded || die "Orca did not start"
+}
+
+cmd_launch() {
+  [ $# -eq 3 ] || usage
+  [ -f "$3" ] || die "no launch script $3"
+  "$ORCA" terminal create --worktree "path:$2" --title "$1" --command "bash $(printf '%q' "$3")" --json 2>/dev/null \
+    | succeeded || die "Orca could not open a terminal in $2"
+}
+
+cmd_alive() {
+  [ $# -eq 1 ] || usage
+  "$ORCA" agent list --json 2>/dev/null | python3 -I -c 'import json, sys
+folder = sys.argv[1]
+agents = json.load(sys.stdin).get("result", {}).get("agents", [])
+times = [a.get("updatedAt", 0) for a in agents if a.get("worktreeId", "").endswith("::" + folder)]
+if not times:
+    sys.exit(1)
+print(max(times))' "$1" 2>/dev/null
+}
+
+cmd_mark() {
+  [ $# -ge 3 ] && [ $# -le 4 ] || usage
+  local args=(--worktree "path:$1" --workspace-status "$2" --comment "$3")
+  [ -n "${4:-}" ] && args+=(--gitlab-mr "$4")
+  "$ORCA" worktree set "${args[@]}" --json 2>/dev/null | succeeded || die "Orca could not mark $1"
+}
+
+agent_terminals() {
+  "$ORCA" terminal list --json 2>/dev/null | python3 -I -c 'import json, sys
+for terminal in json.load(sys.stdin).get("result", {}).get("terminals", []):
+    if terminal.get("worktreePath") == sys.argv[1] and terminal.get("agentIdentity"):
+        print(terminal["handle"])' "$1" 2>/dev/null
+}
+
+cmd_close() {
+  [ $# -eq 1 ] || usage
+  local handle failed=0
+  while IFS= read -r handle; do
+    [ -n "$handle" ] || continue
+    "$ORCA" terminal close --terminal "$handle" --tab --json 2>/dev/null | succeeded || failed=1
+  done < <(agent_terminals "$1")
+  [ "$failed" -eq 0 ] || die "Orca could not close an agent terminal of $1"
+}
+
+cmd="${1:-}"
+[ $# -gt 0 ] && shift
+case "$cmd" in up|launch|alive|mark|close) ;; *) usage ;; esac
+[ "$ORCA" = off ] && exit 0
+[ -x "$ORCA" ] || die "no Orca CLI at $ORCA"
+"cmd_$cmd" "$@"

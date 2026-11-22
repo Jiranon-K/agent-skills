@@ -5,6 +5,7 @@ BIN="$(pwd)/loop/bin"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+export LOOP_ORCA=off
 export LOOP_DIR="$TMP/loop" LOOP_STATE="$BIN/loop-state" LOOP_SPEC="$BIN/loop-spec" WT_ROOT="$TMP/worktree"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 CLEAN="$BIN/loop-clean"

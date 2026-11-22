@@ -1,6 +1,6 @@
 ---
 name: loop-summary
-description: Shows the Loop Engineering summaries written since the last time this ran, as a visible session in the Claude app, plus the designs that wait for the owner's review and the tasks that need a grill before an agent can start. Read-only; run by the app's scheduled task "loop-summary" daily at 9:30, after the 9:15 launchd loop.
+description: Shows the Loop Engineering summaries written since the last time this ran, plus the designs that wait for the owner's review and the tasks that need a grill before an agent can start. Read-only; `/loop-start` follows it after each round, and the owner can run it alone.
 ---
 
 # Loop Summary (visible session)

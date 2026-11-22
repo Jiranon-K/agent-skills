@@ -105,19 +105,13 @@ link loop/bin/loop-next "$HOME/loop/bin/loop-next"
 link loop/bin/loop-spec "$HOME/loop/bin/loop-spec"
 link loop/bin/loop-ask "$HOME/loop/bin/loop-ask"
 link loop/bin/loop-clean "$HOME/loop/bin/loop-clean"
+link loop/bin/loop-orca "$HOME/loop/bin/loop-orca"
 
 # SessionStart hook and loop-run.sh call it; it reads each repo's own .worktreelinks.
 link scripts/wt-setup "$HOME/.claude/hooks/wt-setup"
 # SessionStart hook: removes worktrees whose branch was merged (never main/master/staging/develop).
 link scripts/wt-prune "$HOME/.claude/hooks/wt-prune"
 
-# herdr config holds no placeholders: keep it current like the generic skills.
-link herdr/config.toml "$HOME/.config/herdr/config.toml"
-link herdr/changes-panel.sh "$HOME/.config/herdr/changes-panel.sh"
-link herdr-app/settings.json "$HOME/.config/herdr-app/settings.json"
-for f in herdr-app/themes/*.json; do
-  link "$f" "$HOME/.config/herdr-app/themes/$(basename "$f")"
-done
 
 [ "$dry" -eq 1 ] && echo "(dry run: nothing changed)"
 exit 0

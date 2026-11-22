@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="552" viewBox="0 0 1200 552" role="img" aria-labelledby="t d">
   <title id="t">Loop Engineering</title>
-  <desc id="d">At 09:15 launchd runs loop-run.sh: /loop-triage routes tasks and picks up to two, then each picked task gets its own Claude Code background session running /loop-work, which builds, gets a read-only loop-reviewer pass, fixes the findings and opens a Draft MR. At 09:30 loop-summary shows the result. You then verify the MR and run the gates: /loop-e2e, /merge-approved.</desc>
+  <desc id="d">/loop-start runs loop-run.sh: /loop-triage routes tasks and picks up to two, then each picked task gets its own Claude Code session in an Orca terminal running /loop-work, which builds, gets a read-only loop-reviewer pass, fixes the findings and opens a Draft MR. Then loop-summary shows the result. You then verify the MR and run the gates: /loop-e2e, /merge-approved.</desc>
   <style>
     /* Hallmark · component: figure · genre: modern-minimal · theme: console (matches banner.svg) · console: graphite · signature: the daily run as a timed trail · v2.0.0 */
     /* critique: cool for the clock and the scheduler, amber only for the gates a person runs */
@@ -32,8 +32,8 @@
 
   <path class="spine" d="M168 68V452"/>
 
-  <text class="time" x="56" y="115">09:15</text>
-  <text class="cmd" x="200" y="115">launchd: loop-run.sh</text>
+  <text class="time" x="56" y="115">you</text>
+  <text class="cmd" x="200" y="115">/loop-start: loop-run.sh</text>
   <text class="role" x="640" y="115">Starts the run</text>
   <path class="rule" d="M184 132.5H1200"/>
 
@@ -41,7 +41,7 @@
   <text class="role" x="640" y="179">Coordinator routes tasks, picks up to two</text>
   <path class="rule" d="M184 196.5H1200"/>
 
-  <text class="cmd" x="200" y="243">claude --bg: /loop-work</text>
+  <text class="cmd" x="200" y="243">Orca terminal: /loop-work</text>
   <text class="role" x="640" y="243">One Worker session per task builds it</text>
   <path class="rule" d="M184 260.5H1200"/>
 
@@ -53,7 +53,7 @@
   <text class="role" x="640" y="371">Worker fixes findings, hands off in Workspace</text>
   <path class="rule" d="M184 388.5H1200"/>
 
-  <text class="time" x="56" y="435">09:30</text>
+  <text class="time" x="56" y="435">after</text>
   <text class="cmd" x="200" y="435">loop-summary</text>
   <text class="role" x="640" y="435">Shows what the run did</text>
 

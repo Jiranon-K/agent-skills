@@ -6,6 +6,8 @@ GPT_MODEL="${LOOP_ASK_GPT:-gpt-6-luna}"
 GPT_EFFORT="${LOOP_ASK_GPT_EFFORT:-high}"
 GEMINI_MODEL="${LOOP_ASK_GEMINI:-gemini-3.8-flash-high}"
 GEMINI_TIMEOUT="${LOOP_ASK_TIMEOUT:-600s}"
+ASK_STATE="${LOOP_DIR:-$HOME/loop}/state"
+BASE_REF=""
 
 usage() {
   cat >&2 <<'USAGE'
@@ -38,10 +40,38 @@ ask_gpt() {
   return "$status"
 }
 
+is_secret_path() { case "$(basename "$1")" in .env*|.npmrc) return 0 ;; esac; return 1; }
+
+copy_into_bundle() {
+  local bundle="$1" file="$2" target
+  [ -f "$file" ] || return 0
+  is_secret_path "$file" && return 0
+  case "$file" in /*) target="$bundle$file" ;; *) target="$bundle/$file" ;; esac
+  mkdir -p "$(dirname "$target")" && cp "$file" "$target"
+}
+
+named_paths() { printf '%s\n' "$1" | grep -oE '/[^] )`"'\'':,]+' | sort -u; }
+
+changed_paths() { [ -z "$BASE_REF" ] || git diff --name-only "$BASE_REF...HEAD" 2>/dev/null; }
+
+build_bundle() {
+  local bundle file
+  mkdir -p "$ASK_STATE" || return 1
+  bundle=$(mktemp -d "$ASK_STATE/ask.XXXXXX") || return 1
+  printf '%s\n' "$1" > "$bundle/prompt.md"
+  while IFS= read -r file; do
+    copy_into_bundle "$bundle" "$file"
+  done < <(named_paths "$1"; changed_paths)
+  echo "$bundle"
+}
+
 ask_gemini() {
+  local bundle status
   command -v agy >/dev/null 2>&1 || die "agy is not installed"
-  answer=$(agy -p "Use only your file-read tools and run no shell command. $1" --model "$GEMINI_MODEL" --mode plan --print-timeout "$GEMINI_TIMEOUT" < /dev/null 2>&1)
-  local status=$?
+  bundle=$(build_bundle "$1") || die "could not build a bundle under $ASK_STATE"
+  answer=$(cd "$bundle" && agy -p "Use only your file-read tools and run no shell command. Read prompt.md and answer it. Every file it names is under this directory: an absolute path /a/b is at ./a/b, and a changed file of the diff is at its repo path." --model "$GEMINI_MODEL" --mode plan --print-timeout "$GEMINI_TIMEOUT" < /dev/null 2>&1)
+  status=$?
+  rm -rf "$bundle"
   case "$answer" in *"no output produced"*) status=1 ;; esac
   [ "$status" -eq 0 ] || printf '%s\n' "$answer" | tail -n 5 >&2
   model="$GEMINI_MODEL"
@@ -57,6 +87,7 @@ prompt="Rules for this answer: change nothing, run nothing that writes, and neve
 $(cat "$2")"
 
 if [ $# -eq 3 ]; then
+  BASE_REF="$3"
   diff=$(git diff "$3...HEAD" -- . ':(exclude)*.lock' ':(exclude)package-lock.json') || die "git diff $3...HEAD failed"
   if [ "${#diff}" -gt "$MAX_DIFF_BYTES" ]; then
     diff="${diff:0:$MAX_DIFF_BYTES}

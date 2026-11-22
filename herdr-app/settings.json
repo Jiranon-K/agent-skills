@@ -5,6 +5,8 @@
   },
   "font": "JetBrainsMono Nerd Font Mono",
   "font_size": 13.0,
+  "font_weight": 400,
+  "terminal_line_height": 1.25,
   "font_ligatures": false,
   "minimum_contrast": 1.0,
   "appearance": "dark",

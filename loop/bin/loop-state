@@ -77,17 +77,18 @@ repo="*) ;; *) die "first set of $ticket needs repo=<repo>" ;; esac
 }
 
 show_in_orca() {
-  local wt orca_status comment
+  local wt note
   wt=$(cmd_path "$(value "$1" repo)" "$1" 2>/dev/null)
   [ -d "$wt" ] || return 0
   case "$2" in
-    working) orca_status=in-progress comment="Worker กำลังทำ" ;;
-    blocked) orca_status=in-progress comment="ติด ต้องดู" ;;
-    ready-to-ship) orca_status=in-review comment="รอ push และเปิด MR" ;;
-    mr-open) orca_status=in-review comment="รอ verify" ;;
-    merged) orca_status=completed comment="merge แล้ว" ;;
+    working) note="Worker กำลังทำ" ;;
+    blocked) note="ติด ต้องดู" ;;
+    ready-to-ship) note="รอ push และเปิด MR" ;;
+    mr-open) note="รอ verify" ;;
+    merged) note="merge แล้ว" ;;
+    *) return 0 ;;
   esac
-  "$ORCA_BIN" mark "$wt" "$orca_status" "$1 $comment" "$(value "$1" mr)" >/dev/null 2>&1
+  "$ORCA_BIN" mark "$wt" "$note" >/dev/null 2>&1
   return 0
 }
 

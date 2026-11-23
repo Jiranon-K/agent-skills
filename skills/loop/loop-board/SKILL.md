@@ -18,7 +18,7 @@ Run these in one message:
 - `~/loop/bin/loop-state list` → `<task> status=… repo=… [branch=…] [mr=…] [ui=…]`
 - `~/loop/bin/loop-spec list` → `<task> <design status> repo=… risk=…`
 - The table under `### ต้อง grill ก่อน Agent เริ่มได้` in `~/loop/state/last-triage.md` (its task cells are links already; keep them). "ไม่มี" means none.
-- `/Applications/Orca.app/Contents/Resources/bin/orca agent list --json` → `result.agents`, the live sessions; a session's `title` starts as `<role> <task>` (`loop` = Worker, `design` = Designer), its `worktreeId` ends with the folder it runs in (a Worker's is `…/.claude/worktrees/<task>`), and `state` is `working`, `waiting`, `blocked` or `done`. Match a Worker by its worktree, because Claude may retitle the tab.
+- `/Applications/Orca.app/Contents/Resources/bin/orca agent list --json` → `result.agents`, the live sessions; a session's `title` starts with `<role> <task>` (`loop` = Worker, `design` = Designer), followed by ` · <note>` once its status changed, and `state` is `working`, `waiting`, `blocked` or `done`. Match a session by that start of its title: every session shares one `worktreeId`, the Orca workspace.
 - The task URL base, the "Current sprint" table and the list "Out-of-sprint tasks the owner asked for" in `~/loop/workspace.md`. Link a card as `<base>/tasks/<KEY>`.
 - Per space in that table: `query_view` `space=<key>`, `sprint=<id>`, `assignee=me`, `view_type=table`, `group=none`. The keys it returns, plus the owner's list, are the sprint keys. The same call with `open=true` added gives the open sprint tasks; keep each one's `status` and `route`. A failed call means the board cannot be filtered: say so in one line above the board and show every task.
 

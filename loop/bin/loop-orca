@@ -2,16 +2,19 @@
 set -u
 
 ORCA="${LOOP_ORCA:-/Applications/Orca.app/Contents/Resources/bin/orca}"
+WORKSPACE="${LOOP_ORCA_WORKSPACE:-$HOME/Home}"
+RECORDS="${LOOP_DIR:-$HOME/loop}/state/orca-terminals.tsv"
 
 usage() {
   cat >&2 <<'USAGE'
 loop-orca is the one place the Loop talks to the Orca app. LOOP_ORCA=off turns every call into a no-op.
+Every terminal opens in the Orca workspace LOOP_ORCA_WORKSPACE (default ~/Home); the launch script moves to <folder>.
 
   loop-orca up                                    open Orca and wait until it answers
-  loop-orca launch <name> <folder> <script>       open a terminal named <name> in <folder> that runs <script>
-  loop-orca alive <folder>                        exit 0 and print the newest update time when an agent runs in <folder>
-  loop-orca mark <folder> <status> <comment> [mr] set the workspace status, comment and GitLab MR of <folder>
-  loop-orca close <folder>                        close the agent terminals of <folder>; other terminals stay
+  loop-orca launch <name> <folder> <script>       open a terminal named <name> that runs <script>, recorded for <folder>
+  loop-orca alive <folder>                        exit 0 and print the newest update time when an agent runs in a terminal of <folder>
+  loop-orca mark <folder> <note>                  retitle the terminals launched for <folder> as "<name> · <note>"
+  loop-orca close <folder>                        close the terminals launched for <folder>; other terminals stay
 USAGE
   exit 2
 }
@@ -25,46 +28,89 @@ cmd_up() {
   "$ORCA" open --json 2>/dev/null | succeeded || die "Orca did not start"
 }
 
+created_pane() { python3 -I -c 'import json, sys
+try:
+    answer = json.load(sys.stdin)
+except ValueError:
+    print("no answer from Orca")
+    sys.exit(1)
+if not answer.get("ok"):
+    error = answer.get("error") or {}
+    print(error.get("message") or error.get("code") or "no reason given")
+    sys.exit(1)
+pane = answer.get("result", {}).get("terminal", {}).get("paneKey")
+if not pane:
+    print("Orca gave no paneKey for the new terminal")
+    sys.exit(1)
+print(pane)'; }
+
 cmd_launch() {
   [ $# -eq 3 ] || usage
   [ -f "$3" ] || die "no launch script $3"
-  "$ORCA" terminal create --worktree "path:$2" --title "$1" --command "bash $(printf '%q' "$3")" --json 2>/dev/null \
-    | succeeded || die "Orca could not open a terminal in $2"
+  local pane
+  pane=$("$ORCA" terminal create --worktree "path:$WORKSPACE" --title "$1" --command "bash $(printf '%q' "$3")" --json 2>/dev/null \
+    | created_pane) || die "Orca could not open a terminal in $2: $pane"
+  mkdir -p "$(dirname "$RECORDS")" || die "no folder for $RECORDS"
+  printf '%s\t%s\t%s\n' "$2" "$pane" "$1" >> "$RECORDS" || die "could not record the terminal of $2"
 }
 
 cmd_alive() {
   [ $# -eq 1 ] || usage
+  [ -f "$RECORDS" ] || return 1
   "$ORCA" agent list --json 2>/dev/null | python3 -I -c 'import json, sys
-folder = sys.argv[1]
+folder, records = sys.argv[1:3]
+rows = [line.rstrip("\n").split("\t") for line in open(records)]
+names = {row[1]: row[2] for row in rows if len(row) == 3 and row[0] == folder}
 agents = json.load(sys.stdin).get("result", {}).get("agents", [])
-times = [a.get("updatedAt", 0) for a in agents if a.get("worktreeId", "").endswith("::" + folder)]
+times = [a.get("updatedAt", 0) for a in agents if a.get("paneKey") in names]
 if not times:
     sys.exit(1)
-print(max(times))' "$1" 2>/dev/null
+print(max(times))' "$1" "$RECORDS" 2>/dev/null
+}
+
+recorded_terminals() {
+  "$ORCA" terminal list --json 2>/dev/null | python3 -I -c 'import json, sys
+folder, records = sys.argv[1:3]
+rows = [line.rstrip("\n").split("\t") for line in open(records)]
+names = {row[1]: row[2] for row in rows if len(row) == 3 and row[0] == folder}
+answer = json.load(sys.stdin)
+if not answer.get("ok"):
+    sys.exit(1)
+for terminal in answer.get("result", {}).get("terminals", []):
+    pane = terminal.get("tabId", "") + ":" + terminal.get("leafId", "")
+    if pane in names:
+        print(terminal["handle"] + "\t" + names[pane])' "$1" "$RECORDS" 2>/dev/null
+}
+
+forget() {
+  local kept="$RECORDS.tmp"
+  FOLDER="$1" awk -F '\t' '$1 != ENVIRON["FOLDER"]' "$RECORDS" > "$kept" || return 1
+  mv "$kept" "$RECORDS"
 }
 
 cmd_mark() {
-  [ $# -ge 3 ] && [ $# -le 4 ] || usage
-  local args=(--worktree "path:$1" --workspace-status "$2" --comment "$3")
-  [ -n "${4:-}" ] && args+=(--gitlab-mr "$4")
-  "$ORCA" worktree set "${args[@]}" --json 2>/dev/null | succeeded || die "Orca could not mark $1"
-}
-
-agent_terminals() {
-  "$ORCA" terminal list --json 2>/dev/null | python3 -I -c 'import json, sys
-for terminal in json.load(sys.stdin).get("result", {}).get("terminals", []):
-    if terminal.get("worktreePath") == sys.argv[1] and terminal.get("agentIdentity"):
-        print(terminal["handle"])' "$1" 2>/dev/null
+  [ $# -eq 2 ] || usage
+  [ -f "$RECORDS" ] || return 0
+  local terminals handle name
+  terminals=$(recorded_terminals "$1") || die "Orca could not list the terminals of $1"
+  while IFS=$'\t' read -r handle name; do
+    [ -n "$handle" ] || continue
+    "$ORCA" terminal rename --terminal "$handle" --title "$name · $2" --json 2>/dev/null | succeeded \
+      || die "Orca could not mark $1"
+  done <<< "$terminals"
 }
 
 cmd_close() {
   [ $# -eq 1 ] || usage
-  local handle failed=0
-  while IFS= read -r handle; do
+  [ -f "$RECORDS" ] || return 0
+  local terminals handle
+  terminals=$(recorded_terminals "$1") || die "Orca could not list the terminals of $1"
+  while IFS=$'\t' read -r handle _; do
     [ -n "$handle" ] || continue
-    "$ORCA" terminal close --terminal "$handle" --tab --json 2>/dev/null | succeeded || failed=1
-  done < <(agent_terminals "$1")
-  [ "$failed" -eq 0 ] || die "Orca could not close an agent terminal of $1"
+    "$ORCA" terminal close --terminal "$handle" --tab --json 2>/dev/null | succeeded \
+      || die "Orca could not close a terminal of $1"
+  done <<< "$terminals"
+  forget "$1" || die "could not drop the record of $1"
 }
 
 cmd="${1:-}"

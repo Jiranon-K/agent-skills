@@ -90,7 +90,7 @@ git clone git@github.com:Jiranon-K/agent-skills.git ~/Projects/agent-skills
 
 `--force` replaces existing generic skills only, moving the old ones to `~/.claude/backups/`. Then install the plugins in [plugins.md](plugins.md) and run `/team-context` once per team.
 
-The Loop opens its sessions in [Orca](https://orca.dev): install the app, then add each repo of `~/loop/repos` with `orca repo add --path <checkout>` and `orca repo set --repo path:<checkout> --external-worktree-visibility show`.
+The Loop opens its sessions in [Orca](https://orca.dev): install the app, then add one folder as its workspace with `orca repo add --path <folder>`. Every session opens as a terminal of that workspace and moves to its own repo or worktree by itself. The workspace is `~/Home` unless `LOOP_ORCA_WORKSPACE` names another folder.
 
 ## Setup after install
 

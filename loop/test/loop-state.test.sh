@@ -95,7 +95,7 @@ eq "set keeps the Worker's session id" "$("$LS" get EX-10 session)" "abc-123"
 
 mkworktree EX-11
 "$LS" set EX-11 mr-open mr=https://example.com/mr/2
-eq "set shows the status on the worktree in Orca" "$(tail -n 1 "$TMP/marks")" "mark $TMP/main/.claude/worktrees/EX-11 in-review EX-11 รอ verify https://example.com/mr/2"
+eq "set shows the status on the task's terminal in Orca" "$(tail -n 1 "$TMP/marks")" "mark $TMP/main/.claude/worktrees/EX-11 รอ verify"
 LOCK="$(git -C "$TMP/main/.claude/worktrees/EX-11" rev-parse --absolute-git-dir)/index.lock"
 eq "unlock with no lock says so" "$("$LS" unlock EX-11)" "no index.lock"
 : > "$LOCK"

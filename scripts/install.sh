@@ -98,6 +98,8 @@ link loop/bin/loop-heavy "$HOME/loop/bin/loop-heavy"
 link loop/bin/loop-push "$HOME/loop/bin/loop-push"
 link loop/bin/loop-mr "$HOME/loop/bin/loop-mr"
 link loop/bin/loop-merge "$HOME/loop/bin/loop-merge"
+link loop/bin/loop-verdict "$HOME/loop/bin/loop-verdict"
+link loop/bin/loop-watch "$HOME/loop/bin/loop-watch"
 link loop/bin/loop-upload "$HOME/loop/bin/loop-upload"
 link loop/bin/loop-preview "$HOME/loop/bin/loop-preview"
 # loop-next: a Worker starts the next run when its task ends.

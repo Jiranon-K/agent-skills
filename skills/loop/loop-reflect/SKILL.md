@@ -13,7 +13,7 @@ Find what made the Loop stop, redo or mislead this week, and turn each repeat in
 2. `~/loop/bin/loop-state list` and `~/loop/bin/loop-spec list`: tasks that are `blocked`, designs that are `redo` or `blocked`.
 3. Per design package touched in the window (`~/loop/designs/<task>/`, and `~/loop/archive/<month>/<task>/` for tasks that finished): `feedback.md` (what the owner or a Worker pushed back on), `blocked.md`, and `decisions.tsv` rows whose result is a revert, a scrap or `dropped`.
 4. Session transcripts of the loop's sessions in the window: `~/.claude/projects/<slug>/*.jsonl`, where the slug is a Worker worktree path (`…-claude-worktrees-<task>`, or `…-claude-worktrees-loop-<n>` for older tasks) or a repo's main checkout running `/loop-design`. Read only sessions whose first user message starts with `/loop-work` or `/loop-design`. Never read any other session. From each, list every tool call that was denied for permission (the tool or command, and what the session did next), and every `needs permission:` block.
-5. Merged loop MRs in the window (`loop-state list merged`): what the owner changed after the Draft opened, from `glab mr view <n> --comments` and the commits after the Worker's last one.
+5. Merged loop MRs in the window (`loop-state list merged`): what the owner changed after the MR opened, from `glab mr view <n> --comments` and the commits after the Worker's last one.
 
 Give steps 3–5 to subagents, one per task, and keep only their findings: each finding is one line with the task key and a pointer (file, log line or transcript path).
 

@@ -2,7 +2,7 @@
 # Loop Engineering runner. Started by /loop-start, and by loop-next when a session ends.
 # One run: Coordinator (triage + route + pick, headless) → for each picked task, while Worker slots are free:
 #   prepare a worktree and open a Claude Code session in an Orca terminal running `/loop-work <task> <repo> <risk>`.
-#   The Worker session claims the task, builds, gets an independent review, opens a Draft MR and records loop-state itself,
+#   The Worker session claims the task, builds, gets an independent review and verdict, opens an MR and records loop-state itself,
 #   then calls loop-next so a freed slot is filled the same day. Each task gets its own worktree (.claude/worktrees/<task>),
 #   kept until /merge-approved removes it; it inherits the main checkout's folder trust.
 # One task only:                    ONLY_TASK=EX-1 ~/loop/bin/loop-run.sh

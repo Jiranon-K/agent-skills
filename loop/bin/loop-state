@@ -10,7 +10,7 @@
 #   loop-state reset <ticket>                        remove state, and the worktree if it is clean and pushed
 #   loop-state unlock <ticket>                       remove the worktree's stale git index.lock: empty, older than 5 minutes, no git running
 #
-# Statuses: working blocked ready-to-ship mr-open merged. Keys: repo branch mr ui (yes|no) wt (old slot path) session (Worker session id).
+# Statuses: working blocked ready-to-ship mr-open merged. Keys: repo branch mr ui (yes|no) wt (old slot path) session (Worker session id) verdict and verdict_patch (written by loop-verdict).
 set -u
 
 LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
@@ -18,7 +18,7 @@ WT_ROOT="${WT_ROOT:-$HOME/Projects/worktree}"   # pre-2026-11 worktrees; path st
 REPOS="$LOOP_DIR/repos"                          # local only: "<repo> <main checkout> <base branch>" per line
 TICKETS="$LOOP_DIR/state/tickets"
 STATUSES="working blocked ready-to-ship mr-open merged"
-KEYS="repo branch mr ui wt session"
+KEYS="repo branch mr ui wt session verdict verdict_patch"
 ORCA_BIN="${LOOP_ORCA_BIN:-$(dirname "$0")/loop-orca}"
 
 die() { echo "loop-state: $*" >&2; exit 1; }

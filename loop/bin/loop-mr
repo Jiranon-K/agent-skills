@@ -9,7 +9,7 @@ LABELS="${LOOP_MR_LABELS:-needs:human-verify}"
 
 usage() {
   cat >&2 <<'USAGE'
-loop-mr opens the Draft MR of a Loop task, or replaces the description of the one its branch already has.
+loop-mr opens the MR of a Loop task, ready and not a Draft, or replaces the description of the one its branch already has.
 
   loop-mr <task> [e2e]
   loop-mr <task> e2e-done
@@ -17,9 +17,12 @@ loop-mr opens the Draft MR of a Loop task, or replaces the description of the on
 Run it in the task's worktree. It reads $LOOP_DIR/state/mr-body-<task>.md:
 line 1 is "# <MR title>", the rest is the description in this shape:
 
-  ## Summary        one or two sentences and a fenced diagram, tree or diff sketch
-  ## Evidence       **Before:** and **After:** with real output or screenshots
-  ## Merge Danger   **Door:** one-way or two-way, and **Blast Radius:**
+  ## Why            the problem and the approach, from the user's side
+  ## What changed   a few bullets and a fenced diagram, tree or diff sketch
+  ## Scope          what it covers and what it leaves out
+  ## Tradeoffs      optional: a table of where the options differed, what was chosen and why
+  ## Blast Radius   **Door:** one-way or two-way, and who or what it touches
+  ## Verification   **Before:** and **After:** with real output or screenshots
 
 "e2e" adds the label needs:e2e. A body that misses a part is refused and nothing is sent.
 "e2e-done" only removes needs:e2e from the task's open MR. It reads the branch from
@@ -32,25 +35,25 @@ die() { echo "loop-mr: $*" >&2; exit 1; }
 line_of() { grep -n -m1 -- "$1" "$BODY" | cut -d: -f1; }
 
 check_body() {
-  local summary evidence danger
+  local why changed scope blast verification
   [ -n "$TITLE" ] || die "$FILE line 1 must be '# <MR title>'"
-  summary=$(line_of '^## Summary$')
-  evidence=$(line_of '^## Evidence$')
-  danger=$(line_of '^## Merge Danger$')
-  [ -n "$summary" ] && [ -n "$evidence" ] && [ -n "$danger" ] \
-    || die "the description needs '## Summary', '## Evidence' and '## Merge Danger'"
-  [ "$summary" -lt "$evidence" ] && [ "$evidence" -lt "$danger" ] \
-    || die "the sections go in the order Summary, Evidence, Merge Danger"
-  sed -n "${summary},${evidence}p" "$BODY" | grep -q '^```' \
-    || die "Summary needs a fenced diagram, tree or diff sketch"
-  sed -n "${evidence},${danger}p" "$BODY" | grep -q '\*\*Before:\*\*' \
-    || die "Evidence needs a '**Before:**' line"
-  sed -n "${evidence},${danger}p" "$BODY" | grep -q '\*\*After:\*\*' \
-    || die "Evidence needs an '**After:**' line"
-  sed -n "${danger},\$p" "$BODY" | grep -q '\*\*Door:\*\* *\(one-way\|two-way\)' \
-    || die "Merge Danger needs '**Door:** one-way' or '**Door:** two-way'"
-  sed -n "${danger},\$p" "$BODY" | grep -q '\*\*Blast Radius:\*\* *[^ ]' \
-    || die "Merge Danger needs '**Blast Radius:** <one word>'"
+  why=$(line_of '^## Why$')
+  changed=$(line_of '^## What changed$')
+  scope=$(line_of '^## Scope$')
+  blast=$(line_of '^## Blast Radius$')
+  verification=$(line_of '^## Verification$')
+  [ -n "$why" ] && [ -n "$changed" ] && [ -n "$scope" ] && [ -n "$blast" ] && [ -n "$verification" ] \
+    || die "the description needs '## Why', '## What changed', '## Scope', '## Blast Radius' and '## Verification'"
+  [ "$why" -lt "$changed" ] && [ "$changed" -lt "$scope" ] && [ "$scope" -lt "$blast" ] && [ "$blast" -lt "$verification" ] \
+    || die "the sections go in the order Why, What changed, Scope, Blast Radius, Verification"
+  sed -n "${changed},${scope}p" "$BODY" | grep -q '^```' \
+    || die "What changed needs a fenced diagram, tree or diff sketch"
+  sed -n "${blast},${verification}p" "$BODY" | grep -q '\*\*Door:\*\* *\(one-way\|two-way\)' \
+    || die "Blast Radius needs '**Door:** one-way' or '**Door:** two-way'"
+  sed -n "${verification},\$p" "$BODY" | grep -q '\*\*Before:\*\*' \
+    || die "Verification needs a '**Before:**' line"
+  sed -n "${verification},\$p" "$BODY" | grep -q '\*\*After:\*\*' \
+    || die "Verification needs an '**After:**' line"
 }
 
 mr_field() {
@@ -83,7 +86,7 @@ resolve_repo() {
 
 create_mr() {
   [ -n "${!HOST_VAR:-}" ] || {
-    glab mr create --draft --yes --source-branch "$BRANCH" --target-branch "$BASE" \
+    glab mr create --yes --source-branch "$BRANCH" --target-branch "$BASE" \
       --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null
     return
   }
@@ -92,7 +95,7 @@ create_mr() {
   python3 -I -c '
 import json, sys
 branch, base, title, body, labels = sys.argv[1:]
-print(json.dumps({"source_branch": branch, "target_branch": base, "title": "Draft: " + title,
+print(json.dumps({"source_branch": branch, "target_branch": base, "title": title,
                   "description": open(body).read(), "labels": labels}))' \
     "$BRANCH" "$BASE" "$TITLE" "$BODY" "$LABELS" > "$payload"
   glab api "projects/${project//\//%2F}/merge_requests" --hostname "$host" --method POST \
@@ -137,13 +140,13 @@ case "$BRANCH" in
 esac
 
 if IID=$(mr_field iid); then
-  glab mr update "$IID" ${HOST[@]+"${HOST[@]}"} --draft --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \
+  glab mr update "$IID" ${HOST[@]+"${HOST[@]}"} --ready --title "$TITLE" --description "$(cat "$BODY")" --label "$LABELS" >/dev/null \
     || die "could not update MR !$IID"
 else
   create_mr || die "could not open the MR for $BRANCH"
 fi
 
-[ "$(mr_field draft)" = True ] || die "the MR of $BRANCH is not a Draft"
+[ "$(mr_field draft)" = False ] || die "the MR of $BRANCH is still a Draft"
 SET_LABELS=",$(mr_field labels),"
 for LABEL in ${LABELS//,/ }; do
   case "$SET_LABELS" in *",$LABEL,"*) ;; *) die "the MR of $BRANCH lacks the label $LABEL" ;; esac

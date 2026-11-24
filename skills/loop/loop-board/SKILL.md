@@ -56,7 +56,7 @@ Add one mismatch line per case, saying what each source says and the command to 
 
 - MR `state` is `merged` or `closed` but `loop-state` is not `merged`.
 - `loop-state` `merged` but the MR is `opened`.
-- `mr-open` MR is not a Draft, or lacks `needs:human-verify`.
+- `mr-open` MR lacks `needs:human-verify`, or `~/loop/bin/loop-verdict <task> check` does not print `current PASS` or `current PASS+NOTES`.
 - A `loop` Worker terminal is `working` for a task whose `loop-state` is not `working`, or `loop-state` is `working` with no live Worker terminal.
 - `loop-spec` `designing` with no live `design` terminal for the task.
 - A grill-table task that is also in `loop-state` or `loop-spec` as `approved`.
@@ -71,10 +71,10 @@ A `★` stage marks its header. When any ★ stage has tasks, the first line of 
 ★ รอคุณ 2 task
 ┌ Worker กำลังทำ (1) ──────────┐┌ ★ เปิด MR รอ verify (2) ─────┐┌ merge แล้ว (1) ──────────────┐
 │ APP-20  api                  ││ APP-12  web                  ││ APP-9   web  !510            │
-│   session worker working     ││   !519 Draft  รอ e2e         ││                              │
+│   session worker working     ││   !519  รอ e2e               ││                              │
 │                              ││   /loop-e2e APP-12           ││                              │
 │                              ││ APP-14  web                  ││                              │
-│                              ││   !517 Draft  human verify   ││                              │
+│                              ││   !517  human verify         ││                              │
 │                              ││   /merge-approved APP-14     ││                              │
 └──────────────────────────────┘└──────────────────────────────┘└──────────────────────────────┘
 ```

@@ -1,0 +1,57 @@
+#!/bin/bash
+set -u
+
+LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
+MERGE="$LOOP_DIR/bin/loop-merge"
+INTERVAL="${LOOP_WATCH_INTERVAL:-30}"
+TIMEOUT="${LOOP_WATCH_TIMEOUT:-1800}"
+
+usage() {
+  cat >&2 <<'USAGE'
+loop-watch says whether the open MR of a Loop task is merge-ready. It changes nothing.
+
+  loop-watch <task>          one status pass
+  loop-watch --wait <task>   poll while the pipeline runs, up to LOOP_WATCH_TIMEOUT seconds (default 1800)
+
+The last line is one of:
+  READY               every gate of loop-merge passes and no pipeline is running
+  WAITING <reason>    nothing to fix: a pipeline still runs, needs:e2e waits for the owner, a merge-back is pending
+  BLOCKED <reason>    something must change first: a failed pipeline, a conflict, an open thread, no current PASS verdict
+
+It asks `loop-merge --dry-run`, so READY means /merge-approved would go through.
+USAGE
+  exit 2
+}
+
+status_of() {
+  local gate pipeline
+  gate=$("$MERGE" --dry-run "$TASK" 2>/dev/null | tail -n 1)
+  case "$gate" in
+    "would merge "*)
+      pipeline="${gate##*(pipeline }"
+      pipeline="${pipeline%)}"
+      case "$pipeline" in
+        created|waiting_for_resource|preparing|pending|running|scheduled) echo "WAITING pipeline $pipeline" ;;
+        *) echo READY ;;
+      esac ;;
+    "refused: "*"needs:e2e"*|"refused: merge-back pending"*) echo "WAITING ${gate#refused: }" ;;
+    "refused: "*) echo "BLOCKED ${gate#refused: }" ;;
+    *) echo "BLOCKED loop-merge gave no answer for $TASK" ;;
+  esac
+}
+
+wait=0
+[ "${1:-}" = "--wait" ] && { wait=1; shift; }
+[ $# -eq 1 ] || usage
+TASK="$1"
+case "$TASK" in ""|*/*|.*|-*) usage ;; esac
+
+waited=0
+while :; do
+  status=$(status_of)
+  case "$status" in "WAITING pipeline "*) ;; *) break ;; esac
+  [ "$wait" -eq 1 ] && [ "$waited" -lt "$TIMEOUT" ] || break
+  sleep "$INTERVAL"
+  waited=$((waited + INTERVAL))
+done
+echo "$status"

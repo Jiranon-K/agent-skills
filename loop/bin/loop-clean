@@ -5,6 +5,7 @@ LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
 [ -f "$LOOP_DIR/config.sh" ] && . "$LOOP_DIR/config.sh"
 STATE="${LOOP_STATE:-$LOOP_DIR/bin/loop-state}"
 SPEC="${LOOP_SPEC:-$LOOP_DIR/bin/loop-spec}"
+ORCA_BIN="${LOOP_ORCA_BIN:-$(dirname "$0")/loop-orca}"
 ARCHIVE="${LOOP_ARCHIVE_DIR:-$LOOP_DIR/archive}"
 ARCHIVE_DAYS="${LOOP_ARCHIVE_DAYS:-30}"
 TICKET_DAYS="${LOOP_TICKET_DAYS:-14}"
@@ -98,6 +99,7 @@ remove_merged_worktree() {
   say "$(verb remove) worktree $wt (merged task)"
   removed=$((removed + 1))
   [ "$dry" -eq 1 ] && return 0
+  "$ORCA_BIN" close "$wt" >/dev/null 2>&1
   git -C "$main" worktree remove "$wt" || keep "$wt" "git worktree remove failed"
 }
 

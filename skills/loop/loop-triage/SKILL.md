@@ -36,7 +36,7 @@ Tasks in the `Triage` status or in a review or later stage are status rows only:
   - **low**: docs/test/chore or a small bug, clear acceptance criteria, likely ≤ ~5 files, no open dependency.
   - otherwise **medium**.
 - `repo:` from the task's `repo:` label or, when certain, from the description and `repo-map.md` (then add the label).
-- **Clear** = acceptance criteria are stated, no open question in the description or comments, no unfinished blocker task, and every repo it touches is in `~/loop/repos`. A task may touch several repos: it is still clear, and the Designer splits it into one part per repo.
+- **Clear** = acceptance criteria are stated, no open question in the description or comments, no unfinished blocker task (a blocker that is In Progress or picked this round is unfinished), and every repo it touches is in `~/loop/repos`. A task may touch several repos: it is still clear, and the Designer splits it into one part per repo.
 
 Route:
 - **Clear, any risk** → `route=agent`. Risk does not block the agent; it is reported.
@@ -95,7 +95,8 @@ A `proposed` design waits for the owner: list it in the report under "รอร�
 ## Output format (exact)
 
 Line 1: `NOTIFY: <short Thai summary, ≤ 80 chars>` when something is new or changed vs the previous report (new task, route or labels written, comment posted, an answer arrived, a pick, a task sent to design, a status moved); otherwise `NOTIFY: none`. An unanswered question alone is not a change.
-Then one line per pick: `PICK: <task key> <repo key> <risk>` (repo key = first column of `~/loop/repos`), or a single `PICK: none`.
+Then one line per pick: `PICK: <task key> <repo key> <risk>` (repo key = first column of `~/loop/repos`), or a single `PICK: none`. When the card names blocker tasks, add them as a fourth field, joined by commas with no space: `PICK: <task key> <repo key> <risk> after=<task key>,<task key>`. The runner starts no Worker for a task whose blocker is not merged.
+When the prompt says `Only task: <task key>`, triage that task alone: route it, and write a `PICK` or `DESIGN` line for it only. Every other task keeps its row in the report from the previous report.
 Then one line per task sent to design: `DESIGN: <task key> <repo key> <risk>`, or a single `DESIGN: none`. For a task that touches several repos write every repo key joined by commas with no space, the repo that holds most of the change first: `DESIGN: <task key> <repo key>,<repo key> <risk>`.
 Then one line per task closed outside the Loop: `CLOSED: <task key>`, or a single `CLOSED: none`. A key qualifies when it is in "Ready specs" or "Designs", is not in "Handled tickets", is missing from the open tasks you listed, and `get_task <key>` shows it in a done or cancelled status. A task that only moved to another assignee or is still open does not qualify. The runner archives its spec and design package.
 

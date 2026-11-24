@@ -1,11 +1,11 @@
 #!/bin/bash
-# Loop Engineering runner. launchd (com.example.loop) calls this daily at 9:15.
+# Loop Engineering runner. Started by /loop-start, and by loop-next when a session ends.
 # One run: Coordinator (triage + route + pick, headless) → for each picked task, while Worker slots are free:
-#   prepare a worktree and open a Claude Code background session (claude --bg) running `/loop-work <task> <repo> <risk>`.
-#   The Worker session claims the task, builds, gets an independent review, opens a Draft MR and records loop-state itself,
+#   prepare a worktree and open a Claude Code session in an Orca terminal running `/loop-work <task> <repo> <risk>`.
+#   The Worker session claims the task, builds, gets an independent review and verdict, opens an MR and records loop-state itself,
 #   then calls loop-next so a freed slot is filled the same day. Each task gets its own worktree (.claude/worktrees/<task>),
 #   kept until /merge-approved removes it; it inherits the main checkout's folder trust.
-# Manual run outside working hours: FORCE=1 ~/loop/bin/loop-run.sh
+# One task only:                    ONLY_TASK=EX-1 ~/loop/bin/loop-run.sh
 # Triage only (no Worker):          TRIAGE_ONLY=1 ~/loop/bin/loop-run.sh
 # Parallel Workers (default 2):     LOOP_MAX_WORKERS=3 ~/loop/bin/loop-run.sh
 set -u
@@ -13,12 +13,12 @@ set -u
 LOOP_DIR="$HOME/loop"
 STATE="$LOOP_DIR/bin/loop-state"   # owns task state and worktree paths
 SPEC="$LOOP_DIR/bin/loop-spec"
+ORCA_BIN="$LOOP_DIR/bin/loop-orca"
 CONFIG="$LOOP_DIR/config.sh"
 [ -f "$CONFIG" ] || { echo "loop-run: missing $CONFIG (copy loop/config.example.sh and fill it in)" >&2; exit 1; }
 . "$CONFIG"
 MAX_WORKERS="${LOOP_MAX_WORKERS:-2}"
 MAX_DESIGNERS="${LOOP_MAX_DESIGNERS:-1}"
-# launchd has no user PATH; claude is a native install, glab/git/node come from Homebrew.
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 TODAY=$(date +%F)
@@ -33,12 +33,6 @@ notify() {
   osascript -e "display notification \"$1\" with title \"Loop\"" >/dev/null 2>&1
 }
 log() { printf '%s\n' "$@" >> "$LOG"; }
-
-# launchd replays a missed run on wake, which may land outside working hours.
-HOUR=$((10#$(date +%H)))
-if [ "${FORCE:-0}" != "1" ] && { [ "$HOUR" -lt 9 ] || [ "$HOUR" -gt 18 ]; }; then
-  exit 0
-fi
 
 # One runner at a time. Workers run in their own sessions, so the runner itself is short.
 if [ -d "$LOCK" ] && [ -n "$(find "$LOCK" -maxdepth 0 -mmin +60)" ]; then
@@ -76,7 +70,7 @@ summarize() {
 
 👉 ต้องทำ
 1. <action สั้น> → [เปิด](<ลิงก์>)
-(เฉพาะเรื่องใหม่รอบนี้: ดู Worker session ด้วย claude attach, ไปถามข้อมูลของ task ที่เพิ่งติด needs:human ห้ามยกคำถามเก่าที่ยังไม่ได้คำตอบมาซ้ำ ถ้าไม่มีให้เขียน \"ไม่มี\" แทนรายการ)
+(เฉพาะเรื่องใหม่รอบนี้: ดู Worker session ใน Orca, ไปถามข้อมูลของ task ที่เพิ่งติด needs:human ห้ามยกคำถามเก่าที่ยังไม่ได้คำตอบมาซ้ำ ถ้าไม่มีให้เขียน \"ไม่มี\" แทนรายการ)
 
 ถ้ารันพัง ให้บรรทัด ✅ เป็น \"รันไม่สำเร็จ: <สาเหตุสั้น>\" และ 👉 เป็นสิ่งที่ควรเช็ค
 
@@ -96,12 +90,6 @@ on_exit() {
   rmdir "$LOCK"
 }
 trap on_exit EXIT
-
-# A run replayed on wake starts before Wi-Fi is back; wait up to 2 minutes for the API.
-for _ in $(seq 1 12); do
-  curl -s -o /dev/null --max-time 5 https://api.anthropic.com && break
-  sleep 10
-done
 
 # Prints the value after "<KEY>: " on the first matching line of $1.
 field() { printf '%s\n' "$1" | grep -m1 "^$2:" | sed "s/^$2: *//"; }
@@ -124,8 +112,172 @@ WORKSPACE_DENY=(
   "mcp__${WORKSPACE_MCP}__decide_request"
 )
 
+WORKER_DENY=(
+  "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}"
+  "Bash(git push:*)" "Bash(git -C:*)" "Bash(glab mr create:*)" "Bash(glab mr update:*)" "Bash(glab api -X:*)" "Bash(glab api --method:*)"
+  "Bash(~/loop/bin/loop-spec approve:*)" "Bash($HOME/loop/bin/loop-spec approve:*)"
+  "Bash(~/loop/bin/loop-spec part:*)" "Bash($HOME/loop/bin/loop-spec part:*)"
+)
+DESIGNER_DENY=(
+  "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}" "NotebookEdit"
+  "Bash(git push:*)" "Bash(git commit:*)" "Bash(git add:*)" "Bash(git checkout:*)" "Bash(git switch:*)"
+  "Bash(~/loop/bin/loop-spec approve:*)" "Bash($HOME/loop/bin/loop-spec approve:*)"
+  "Bash(~/loop/bin/loop-spec part:*)" "Bash($HOME/loop/bin/loop-spec part:*)"
+  "Bash(~/loop/bin/loop-spec feedback:*)" "Bash($HOME/loop/bin/loop-spec feedback:*)"
+  "mcp__${WORKSPACE_MCP}__transition_task" "mcp__${WORKSPACE_MCP}__start_work"
+  "mcp__${WORKSPACE_MCP}__finish_work" "mcp__${WORKSPACE_MCP}__update_work_state"
+  "mcp__${WORKSPACE_MCP}__add_task_link"
+)
+
+write_launcher() {
+  local script="$1" folder="$2"
+  shift 2
+  { printf '#!/bin/bash\ncd %q || exit 1\nexec' "$folder"; printf ' %q' "$@"; printf '\n'; } > "$script"
+}
+
+open_session() {
+  local name="$1" folder="$2" session="$3" command="$4" how="${5:---session-id}" dirs=("$LOOP_DIR") line script
+  while IFS= read -r line; do [ -n "$line" ] && dirs+=("$line"); done <<< "${SESSION_DIRS:-}"
+  script="$LOOP_DIR/state/launch-${name// /-}.sh"
+  write_launcher "$script" "$folder" claude "$how" "$session" -n "$name" --model opus --effort medium \
+    --permission-mode bypassPermissions --add-dir "${dirs[@]}" --disallowedTools "${SESSION_DENY[@]}" -- "$command"
+  "$ORCA_BIN" launch "$name" "$folder" "$script" 2>&1 || return 1
+  echo "Orca session '$name' (claude --resume $session)"
+}
+
+new_session_id() { uuidgen | tr '[:upper:]' '[:lower:]'; }
+
+resume_dead_workers() {
+  local task repo wt session where
+  while read -r task _; do
+    [ -n "$task" ] || continue
+    session=$("$STATE" get "$task" session)
+    [ -n "$session" ] || continue
+    wt=$("$STATE" path "$("$STATE" get "$task" repo)" "$task")
+    [ -d "$wt" ] || continue
+    "$ORCA_BIN" alive "$wt" >/dev/null 2>&1 && continue
+    DID=1
+    SESSION_DENY=("${WORKER_DENY[@]}")
+    if where=$(open_session "loop $task" "$wt" "$session" "The session was closed before the task ended. Continue the task from where you stopped." --resume); then
+      log "## $NOW worker resumed $task — $where" ""
+    else
+      log "## $NOW worker resume FAILED — $task: $where" ""
+      notify "เปิด Worker $task ต่อไม่ได้"
+    fi
+  done < <("$STATE" list working)
+}
+
+blocker_unfinished() {
+  local blocker status
+  for blocker in ${1//,/ }; do
+    status=$("$STATE" get "$blocker" status 2>/dev/null)
+    if [ -n "$status" ] && [ "$status" != merged ]; then echo "$blocker"; return 0; fi
+    if printf '%s\n' "$PICKS" | grep -q "^$blocker "; then echo "$blocker"; return 0; fi
+  done
+  return 1
+}
+
+trim_idle_sessions() {
+  local task wt seen live=0 idle=""
+  while read -r task _; do
+    [ -n "$task" ] || continue
+    wt=$("$STATE" path "$("$STATE" get "$task" repo)" "$task")
+    seen=$("$ORCA_BIN" alive "$wt" 2>/dev/null) || continue
+    live=$((live + 1))
+    case "$("$STATE" get "$task" status)" in mr-open|ready-to-ship) idle="$idle$seen $task $wt"$'\n' ;; esac
+  done < <("$STATE" list)
+  while [ "$live" -gt "$MAX_WORKERS" ] && read -r _ task wt; do
+    [ -n "$task" ] || break
+    "$ORCA_BIN" close "$wt" >/dev/null 2>&1 || continue
+    live=$((live - 1))
+    log "## $NOW closed the idle session of $task (claude --resume $("$STATE" get "$task" session) opens it again)"
+  done < <(printf '%s' "$idle" | sort -n)
+}
+
+start_designer() {
+  local task="$1" repos="$2" risk="${3:-?}" repo repo_dir base where first_dir="" other_dirs=""
+  SESSION_DENY=("${DESIGNER_DENY[@]}")
+  for repo in ${repos//,/ }; do
+    if ! read -r repo_dir base < <("$STATE" repo "$repo" 2>/dev/null) || [ -z "$base" ]; then
+      log "## $NOW designer skipped — unknown repo '$repo' for $task (add it to $LOOP_DIR/repos)"
+      return
+    fi
+    git -C "$repo_dir" fetch -q origin "$base" 2>/dev/null
+    SESSION_DENY+=("Edit(/$repo_dir/**)" "Write(/$repo_dir/**)")
+    if [ -z "$first_dir" ]; then first_dir="$repo_dir"; continue; fi
+    other_dirs="$other_dirs$repo_dir"$'\n'
+  done
+  if ! "$SPEC" start "$task" "$repos" "$risk" 2>/dev/null; then
+    log "## $NOW designer skipped — $task: design is $("$SPEC" status "$task")"
+    return
+  fi
+  DID=1
+  SESSION_DIRS="$other_dirs"
+  if where=$(open_session "design $task" "$first_dir" "$(new_session_id)" "/loop-design $task $repos $risk"); then
+    log "## $NOW designer started $task ($repos, risk:$risk) — $where" "package: $("$SPEC" path "$task")" ""
+    notify "Designer เริ่ม $task ($repos, risk:$risk)"
+  else
+    "$SPEC" block "$task" "could not open a session: $where"
+    log "## $NOW designer FAILED — $task: could not open a session: $where" ""
+    notify "เปิด Designer session ไม่ได้ ($task)"
+  fi
+  SESSION_DIRS=""
+}
+
+start_worker() {
+  local task="$1" repo="$2" risk="${3:-?}" repo_dir base wt branch where session
+  if ! read -r repo_dir base < <("$STATE" repo "$repo" 2>/dev/null) || [ -z "$base" ]; then
+    log "## $NOW worker skipped — unknown repo '$repo' for $task (add it to $LOOP_DIR/repos)"
+    return
+  fi
+  if [ "$repo" = "$RELEASE_REPO" ] && [ "$MERGE_BACK_PENDING" != "0" ]; then
+    log "## $NOW worker skipped — $task: $RELEASE_REPO merge-back master → staging pending ($MERGE_BACK_PENDING commits)"
+    return
+  fi
+  if "$STATE" get "$task" >/dev/null; then
+    log "## $NOW worker skipped — $task already handled ($("$STATE" get "$task" status))"
+    return
+  fi
+
+  wt=$("$STATE" path "$repo" "$task")
+  if [ -e "$wt" ]; then
+    log "## $NOW worker skipped — $task: $wt already exists (remove it, or finish the task by hand)"
+    return
+  fi
+  branch="loop/$(echo "$task" | tr '[:upper:]' '[:lower:]')"
+  mkdir -p "$(dirname "$wt")"
+  if ! { git -C "$repo_dir" fetch origin "$base" >/dev/null 2>&1 \
+         && git -C "$repo_dir" worktree add --no-track -b "$branch" "$wt" "origin/$base" >/dev/null 2>&1; }; then
+    log "## $NOW worker FAILED — $task: could not create worktree $wt on $branch from origin/$base"
+    notify "Worker สร้าง worktree ไม่ได้ ($task)"
+    DID=1
+    return
+  fi
+  "$HOME/.claude/hooks/wt-setup" "$wt" >/dev/null 2>&1 || log "## $NOW worker: wt-setup failed for $wt (local files not linked)"
+  session=$(new_session_id)
+  "$STATE" set "$task" working repo="$repo" branch="$branch" session="$session"
+  DID=1
+  SESSION_DENY=("${WORKER_DENY[@]}")
+  if where=$(open_session "loop $task" "$wt" "$session" "/loop-work $task $repo $risk"); then
+    log "## $NOW worker started $task ($repo, risk:$risk) — $where" "worktree: $wt" ""
+    notify "Worker เริ่ม $task ($repo, risk:$risk)"
+  else
+    "$STATE" set "$task" blocked
+    log "## $NOW worker FAILED — $task: could not open a session: $where" ""
+    notify "เปิด Worker session ไม่ได้ ($task)"
+  fi
+}
+
+if ! "$ORCA_BIN" up 2>/dev/null; then
+  DID=1
+  log "## $NOW run FAILED — Orca did not start" ""
+  notify "เปิด Orca ไม่ได้ Loop ไม่ได้รัน"
+  exit 1
+fi
+
 CLEANED=$("$LOOP_DIR/bin/loop-clean" 2>&1)
 [ -n "$CLEANED" ] && { DID=1; log "## $NOW cleanup" "" "$CLEANED" ""; }
+resume_dead_workers
 
 # ---------- Coordinator ----------
 PREV="(none)"
@@ -165,6 +317,8 @@ spec_ready() { grep -qx 'status: ready' "$SPECS/$1.md" 2>/dev/null; }
 READY_SPECS=$(grep -lx 'status: ready' "$SPECS"/*.md 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\.md$//')
 
 OUT=$(cd "$LOOP_DIR" && claude -p "/loop-triage
+
+Only task: ${ONLY_TASK:-(all)}
 
 Worker slots: $SLOTS
 
@@ -209,6 +363,10 @@ MSG=$(field "$OUT" NOTIFY)
 PICKS=$(printf '%s\n' "$OUT" | grep '^PICK:' | sed 's/^PICK: *//' | grep -v '^none$')
 DESIGN_PICKS=$(printf '%s\n' "$OUT" | grep '^DESIGN:' | sed 's/^DESIGN: *//' | grep -v '^none$')
 CLOSED=$(printf '%s\n' "$OUT" | grep '^CLOSED:' | sed 's/^CLOSED: *//' | grep -v '^none$' | tr '\n' ' ')
+if [ -n "${ONLY_TASK:-}" ]; then
+  PICKS=$(printf '%s\n' "$PICKS" | grep "^$ONLY_TASK ")
+  DESIGN_PICKS=$(printf '%s\n' "$DESIGN_PICKS" | grep "^$ONLY_TASK ")
+fi
 REPORT=$(printf '%s\n' "$OUT" | tail -n +$((NLINE + 1)) | grep -v -e '^PICK:' -e '^DESIGN:' -e '^CLOSED:')
 printf '%s\n' "$REPORT" > "$LAST"
 log "## $NOW triage" "" "PICK: ${PICKS:-none}" "WORKERS: $WORKING working · $SLOTS free of $MAX_WORKERS" \
@@ -224,183 +382,13 @@ fi
 [ "${TRIAGE_ONLY:-0}" = "1" ] && exit 0
 [ -z "$PICKS" ] && [ -z "$DESIGN_PICKS" ] && exit 0
 
-WORKER_ALLOW=(
-  "Skill" "Agent" "TodoWrite" "Read" "Edit" "Write" "Grep" "Glob"
-  "Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)" "Bash(git add:*)"
-  "Bash(git commit:*)" "Bash(git branch:*)" "Bash(git rev-parse:*)" "Bash(git fetch:*)" "Bash(git rev-list:*)"
-  "Bash(~/loop/bin/loop-push)" "Bash($HOME/loop/bin/loop-push)"
-  "Bash(~/loop/bin/loop-mr:*)" "Bash($HOME/loop/bin/loop-mr:*)"
-  "Bash(~/loop/bin/loop-upload:*)" "Bash($HOME/loop/bin/loop-upload:*)"
-  "Bash(~/loop/bin/loop-merge:*)" "Bash($HOME/loop/bin/loop-merge:*)"
-  "Bash(~/loop/bin/loop-clean)" "Bash($HOME/loop/bin/loop-clean)"
-  "Bash(yarn:*)" "Bash(npm:*)" "Bash(npx:*)" "Bash(node:*)" "Bash(bun:*)" "Bash(go:*)" "Bash(make:*)"
-  "Bash(uv:*)" "Bash(python3:*)" "Bash(./init.sh:*)" "Bash(./scripts/:*)" "Bash(.harness/scripts/:*)"
-  "Bash(glab mr view:*)" "Bash(glab mr note:*)"
-  "Bash(ls:*)" "Bash(cat:*)" "Bash(head:*)" "Bash(tail:*)" "Bash(grep:*)" "Bash(find:*)"
-  "Bash(wc:*)" "Bash(mkdir:*)" "Bash(ps:*)" "Bash(pgrep:*)" "Bash(pkill -f karma:*)"
-  "Bash(sed:*)" "Bash(which:*)" "Bash(docker:*)" "Bash(colima status:*)" "Bash(glab api projects/:*)"
-  "Bash(~/loop/bin/loop-next)" "Bash($HOME/loop/bin/loop-next)"
-  "Bash(~/loop/bin/loop-state:*)" "Bash($HOME/loop/bin/loop-state:*)"
-  "Bash(~/loop/bin/loop-heavy:*)" "Bash($HOME/loop/bin/loop-heavy:*)"
-  "Bash(~/loop/bin/loop-preview:*)" "Bash($HOME/loop/bin/loop-preview:*)"
-  "Bash(~/loop/bin/loop-ask:*)" "Bash($HOME/loop/bin/loop-ask:*)"
-  "Bash(~/loop/bin/loop-spec log:*)" "Bash($HOME/loop/bin/loop-spec log:*)"
-  "Bash(~/loop/bin/loop-spec path:*)" "Bash($HOME/loop/bin/loop-spec path:*)"
-  "Bash(~/loop/bin/loop-spec feedback:*)" "Bash($HOME/loop/bin/loop-spec feedback:*)"
-  "Edit(~/loop/designs/**)" "Write(~/loop/designs/**)"
-  "${WORKSPACE_READ[@]}" "mcp__${WORKSPACE_MCP}__get_work_context"
-  "mcp__${WORKSPACE_MCP}__start_work" "mcp__${WORKSPACE_MCP}__update_work_state"
-  "mcp__${WORKSPACE_MCP}__finish_work" "mcp__${WORKSPACE_MCP}__transition_task"
-  "mcp__${WORKSPACE_MCP}__add_task_link" "mcp__${WORKSPACE_MCP}__add_comment"
-  "mcp__${WORKSPACE_MCP}__update_task"
-  "mcp__claude-in-chrome"
-)
-WORKER_DENY=(
-  "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}"
-  "Bash(git push:*)" "Bash(git -C:*)" "Bash(glab mr create:*)" "Bash(glab mr update:*)" "Bash(glab api -X:*)" "Bash(glab api --method:*)"
-  "Bash(~/loop/bin/loop-spec approve:*)" "Bash($HOME/loop/bin/loop-spec approve:*)"
-  "Bash(~/loop/bin/loop-spec part:*)" "Bash($HOME/loop/bin/loop-spec part:*)"
-)
-DESIGNER_ALLOW=(
-  "Skill" "Agent" "TodoWrite" "Read" "Grep" "Glob"
-  "Edit(~/loop/designs/**)" "Write(~/loop/designs/**)"
-  "Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)" "Bash(git fetch:*)"
-  "Bash(git rev-parse:*)" "Bash(git ls-files:*)" "Bash(git ls-tree:*)" "Bash(git grep:*)"
-  "Bash(ls:*)" "Bash(cat:*)" "Bash(head:*)" "Bash(tail:*)" "Bash(grep:*)" "Bash(find:*)" "Bash(wc:*)"
-  "Bash(~/loop/bin/loop-next)" "Bash($HOME/loop/bin/loop-next)"
-  "Bash(~/loop/bin/loop-ask:*)" "Bash($HOME/loop/bin/loop-ask:*)"
-  "Bash(~/loop/bin/loop-spec done:*)" "Bash($HOME/loop/bin/loop-spec done:*)"
-  "Bash(~/loop/bin/loop-spec block:*)" "Bash($HOME/loop/bin/loop-spec block:*)"
-  "Bash(~/loop/bin/loop-spec status:*)" "Bash($HOME/loop/bin/loop-spec status:*)"
-  "Bash(~/loop/bin/loop-spec path:*)" "Bash($HOME/loop/bin/loop-spec path:*)"
-  "Bash(~/loop/bin/loop-spec log:*)" "Bash($HOME/loop/bin/loop-spec log:*)"
-  "${WORKSPACE_READ[@]}" "mcp__${WORKSPACE_MCP}__get_work_context"
-  "mcp__${WORKSPACE_MCP}__add_comment" "mcp__${WORKSPACE_MCP}__update_task"
-  "mcp__claude_ai_gitlab__get_repository_file" "mcp__claude_ai_gitlab__list_repository_tree"
-  "mcp__claude_ai_gitlab__get_merge_request" "mcp__claude_ai_gitlab__list_merge_requests"
-  "mcp__claude_ai_gitlab__get_commit" "mcp__claude_ai_gitlab__list_commits" "mcp__claude_ai_gitlab__search"
-)
-DESIGNER_DENY=(
-  "${DENY_COMMON[@]}" "${WORKSPACE_DENY[@]}" "NotebookEdit"
-  "Bash(git push:*)" "Bash(git commit:*)" "Bash(git add:*)" "Bash(git checkout:*)" "Bash(git switch:*)"
-  "Bash(~/loop/bin/loop-spec approve:*)" "Bash($HOME/loop/bin/loop-spec approve:*)"
-  "Bash(~/loop/bin/loop-spec part:*)" "Bash($HOME/loop/bin/loop-spec part:*)"
-  "Bash(~/loop/bin/loop-spec feedback:*)" "Bash($HOME/loop/bin/loop-spec feedback:*)"
-  "mcp__${WORKSPACE_MCP}__transition_task" "mcp__${WORKSPACE_MCP}__start_work"
-  "mcp__${WORKSPACE_MCP}__finish_work" "mcp__${WORKSPACE_MCP}__update_work_state"
-  "mcp__${WORKSPACE_MCP}__add_task_link"
-)
-
-# Opens a Claude Code background session in $folder; `claude agents` lists it and `claude attach` opens it.
-# The caller sets SESSION_ALLOW and SESSION_DENY first.
-open_session() {
-  local name="$1" folder="$2" mode="$3" command="$4" dirs=("$LOOP_DIR") line out id
-  while IFS= read -r line; do [ -n "$line" ] && dirs+=("$line"); done <<< "${SESSION_DIRS:-}"
-  out=$(cd "$folder" && claude --bg -n "$name" --model opus --effort medium --permission-mode "$mode" \
-    --add-dir "${dirs[@]}" --allowedTools "${SESSION_ALLOW[@]}" --disallowedTools "${SESSION_DENY[@]}" \
-    -- "$command" < /dev/null 2>&1)
-  id=$(printf '%s\n' "$out" | sed -n 's/^backgrounded · \([^ ]*\) · .*/\1/p' | head -n 1)
-  if [ -z "$id" ]; then
-    printf '%s\n' "$out" | grep . | tail -n 1
-    return 1
-  fi
-  if show_session "$name" "$folder" "$id"; then
-    echo "background session '$name' (claude attach $id), shown in herdr space '$name'"
-  else
-    echo "background session '$name' (claude attach $id)"
-  fi
-}
-
-show_session() {
-  local name="$1" folder="$2" id="$3" tab="worker" json
-  case "$name" in design\ *) tab="designer" ;; esac
-  command -v herdr-app >/dev/null 2>&1 || return 1
-  herdr-app status >/dev/null 2>&1 || return 1
-  json=$(python3 -I -c 'import json, sys
-print(json.dumps({"name": sys.argv[1], "folder": sys.argv[2], "tab": sys.argv[3], "argv": ["claude", "attach", sys.argv[4]]}))' "$name" "$folder" "$tab" "$id")
-  herdr-app do space.new "$json" >/dev/null 2>&1
-}
-
-start_designer() {
-  local task="$1" repos="$2" risk="${3:-?}" repo repo_dir base where first_dir="" other_dirs="" verb
-  SESSION_ALLOW=("${DESIGNER_ALLOW[@]}")
-  for repo in ${repos//,/ }; do
-    if ! read -r repo_dir base < <("$STATE" repo "$repo" 2>/dev/null) || [ -z "$base" ]; then
-      log "## $NOW designer skipped — unknown repo '$repo' for $task (add it to $LOOP_DIR/repos)"
-      return
-    fi
-    git -C "$repo_dir" fetch -q origin "$base" 2>/dev/null
-    if [ -z "$first_dir" ]; then first_dir="$repo_dir"; continue; fi
-    other_dirs="$other_dirs$repo_dir"$'\n'
-    for verb in show diff log status rev-parse ls-files ls-tree grep; do
-      SESSION_ALLOW+=("Bash(git -C $repo_dir $verb:*)")
-    done
-  done
-  if ! "$SPEC" start "$task" "$repos" "$risk" 2>/dev/null; then
-    log "## $NOW designer skipped — $task: design is $("$SPEC" status "$task")"
-    return
-  fi
-  DID=1
-  SESSION_DENY=("${DESIGNER_DENY[@]}")
-  SESSION_DIRS="$other_dirs"
-  if where=$(open_session "design $task" "$first_dir" "dontAsk" "/loop-design $task $repos $risk"); then
-    log "## $NOW designer started $task ($repos, risk:$risk) — $where" "package: $("$SPEC" path "$task")" ""
-    notify "Designer เริ่ม $task ($repos, risk:$risk)"
-  else
-    "$SPEC" block "$task" "could not open a background session: $where"
-    log "## $NOW designer FAILED — $task: could not open a background session: $where" ""
-    notify "เปิด Designer session ไม่ได้ ($task)"
-  fi
-  SESSION_DIRS=""
-}
-
-start_worker() {
-  local task="$1" repo="$2" risk="${3:-?}" repo_dir base wt branch where
-  if ! read -r repo_dir base < <("$STATE" repo "$repo" 2>/dev/null) || [ -z "$base" ]; then
-    log "## $NOW worker skipped — unknown repo '$repo' for $task (add it to $LOOP_DIR/repos)"
-    return
-  fi
-  if [ "$repo" = "$RELEASE_REPO" ] && [ "$MERGE_BACK_PENDING" != "0" ]; then
-    log "## $NOW worker skipped — $task: $RELEASE_REPO merge-back master → staging pending ($MERGE_BACK_PENDING commits)"
-    return
-  fi
-  if "$STATE" get "$task" >/dev/null; then
-    log "## $NOW worker skipped — $task already handled ($("$STATE" get "$task" status))"
-    return
-  fi
-
-  wt=$("$STATE" path "$repo" "$task")
-  if [ -e "$wt" ]; then
-    log "## $NOW worker skipped — $task: $wt already exists (remove it, or finish the task by hand)"
-    return
-  fi
-  branch="loop/$(echo "$task" | tr '[:upper:]' '[:lower:]')"
-  mkdir -p "$(dirname "$wt")"
-  if ! { git -C "$repo_dir" fetch origin "$base" >/dev/null 2>&1 \
-         && git -C "$repo_dir" worktree add --no-track -b "$branch" "$wt" "origin/$base" >/dev/null 2>&1; }; then
-    log "## $NOW worker FAILED — $task: could not create worktree $wt on $branch from origin/$base"
-    notify "Worker สร้าง worktree ไม่ได้ ($task)"
-    DID=1
-    return
-  fi
-  "$HOME/.claude/hooks/wt-setup" "$wt" >/dev/null 2>&1 || log "## $NOW worker: wt-setup failed for $wt (local files not linked)"
-  "$STATE" set "$task" working repo="$repo" branch="$branch"
-  DID=1
-  SESSION_ALLOW=("${WORKER_ALLOW[@]}")
-  SESSION_DENY=("${WORKER_DENY[@]}")
-  if where=$(open_session "loop $task" "$wt" "dontAsk" "/loop-work $task $repo $risk"); then
-    log "## $NOW worker started $task ($repo, risk:$risk) — $where" "worktree: $wt" ""
-    notify "Worker เริ่ม $task ($repo, risk:$risk)"
-  else
-    "$STATE" set "$task" blocked
-    log "## $NOW worker FAILED — $task: could not open a background session: $where" ""
-    notify "เปิด Worker session ไม่ได้ ($task)"
-  fi
-}
-
 STARTED=0
-while read -r TASK REPO RISK; do
+while read -r TASK REPO RISK AFTER; do
   [ -z "$TASK" ] && continue
+  if BLOCKER=$(blocker_unfinished "${AFTER#after=}"); then
+    log "## $NOW worker skipped — $TASK: its blocker $BLOCKER is not merged"
+    continue
+  fi
   spec_ready "$TASK" || { log "## $NOW worker skipped — $TASK: no ready spec in $SPECS"; continue; }
   [ "$STARTED" -ge "$SLOTS" ] && { log "## $NOW worker skipped — $TASK: no free Worker slot"; continue; }
   start_worker "$TASK" "$REPO" "$RISK"
@@ -413,4 +401,5 @@ while read -r TASK REPO RISK; do
   start_designer "$TASK" "$REPO" "$RISK"
   DESIGNING_KEYS=$("$SPEC" list designing | cut -d' ' -f1)
 done <<< "$DESIGN_PICKS"
+trim_idle_sessions
 exit 0

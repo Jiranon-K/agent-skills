@@ -13,7 +13,7 @@ usage() {
   cat >&2 <<'USAGE'
 loop-merge merges the open MR of one Loop task the way /merge-approved does, and nothing else.
 
-  loop-merge <task>             check the gates, mark the MR ready, merge it
+  loop-merge <task>             check the gates, remove needs:human-verify, merge it
   loop-merge --dry-run <task>   check the gates only; change nothing
 
 It reads repo, branch and MR from loop-state and needs status=mr-open.
@@ -95,6 +95,15 @@ check_merge_back() {
   [ "$pending" = 0 ] || refuse "merge-back pending: master has $pending commit(s) not in staging; wait for the merge-back"
 }
 
+check_verdict() {
+  local verdict
+  verdict=$("$LOOP_DIR/bin/loop-verdict" "$TASK" check 2>/dev/null) || refuse "could not read the verdict of $TASK"
+  case "$verdict" in
+    "current PASS"|"current PASS+NOTES") ;;
+    *) refuse "the verdict of $TASK is $verdict: a PASS on the current patch is needed (a loop-verifier run, or loop-verdict $TASK PASS <notes file>)" ;;
+  esac
+}
+
 check_gates() {
   local labels unresolved
   [ "$(mr_field state)" = opened ] || refuse "MR !$IID is $(mr_field state), not open"
@@ -107,6 +116,8 @@ check_gates() {
   [ "$(mr_field head_pipeline.status)" != failed ] || refuse "the head pipeline of MR !$IID failed"
   unresolved=$(count_unresolved) || refuse "could not read the threads of MR !$IID"
   [ "$unresolved" = 0 ] || refuse "MR !$IID has $unresolved unresolved thread(s)"
+  [ "$(mr_field has_conflicts)" != True ] || refuse "MR !$IID conflicts with $BASE: bring $BRANCH up to date first"
+  check_verdict
   [ "$REPO" != "${RELEASE_REPO:-}" ] || check_merge_back
 }
 
@@ -212,6 +223,6 @@ read_state
 parse_mr_url
 load_mr
 check_gates
-[ "$dry" -eq 1 ] && { echo "would merge $MR_URL into $BASE"; exit 0; }
+[ "$dry" -eq 1 ] && { echo "would merge $MR_URL into $BASE (pipeline $(mr_field head_pipeline.status))"; exit 0; }
 mark_ready
 if [ "$HOST" = "$LOCAL_MERGE_HOST" ]; then merge_locally; else merge_on_gitlab; fi

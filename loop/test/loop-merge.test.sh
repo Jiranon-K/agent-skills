@@ -5,6 +5,7 @@ REPO="$(pwd)"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+export LOOP_ORCA=off
 export LOOP_DIR="$TMP/loop" LOOP_MERGE_WAIT=0
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 
@@ -16,6 +17,7 @@ has()  { case "$2" in *"$3"*) ok ;; *) fail "$1: '$3' not in '$2'" ;; esac; }
 
 mkdir -p "$LOOP_DIR/bin" "$TMP/bin"
 ln -s "$REPO/loop/bin/loop-state" "$LOOP_DIR/bin/loop-state"
+ln -s "$REPO/loop/bin/loop-verdict" "$LOOP_DIR/bin/loop-verdict"
 MERGE="$REPO/loop/bin/loop-merge"
 ORIGIN="$TMP/origin.git"
 MAIN="$TMP/web-app"
@@ -83,6 +85,10 @@ print(json.dumps({"iid": 7, "project_id": 1, "state": "opened", "draft": True, "
   rm -f "$CALLS"
 }
 run() { "$MERGE" "$@" 2>/dev/null; }
+verdict() {
+  echo "checked by hand" > "$TMP/notes"
+  "$LOOP_DIR/bin/loop-verdict" "$1" "$2" "$TMP/notes" >/dev/null 2>&1
+}
 refused() {
   local out
   out=$(run EX-1)
@@ -108,7 +114,21 @@ mr_json "owner:you,needs:human-verify"
 echo '{"notes":[{"resolvable":true,"resolved":false}]}' > "$THREADS"
 refused "an MR with an unresolved thread" "1 unresolved thread"
 mr_json "owner:you,needs:human-verify"
-eq "a dry run only checks the gates" "$(run --dry-run EX-1)" "would merge $URL into staging"
+python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); m["has_conflicts"]=True; json.dump(m, open(sys.argv[1],"w"))' "$MR_JSON"
+refused "an MR with a conflict" "conflicts with staging"
+mr_json "owner:you,needs:human-verify"
+refused "an MR with no verdict" "the verdict of EX-1 is none"
+verdict EX-1 FAIL
+has "a verdict is posted on the MR" "$(cat "$CALLS")" "mr note create 7 -R gitlab.com/team/web-app --resolvable=false -m **Loop verdict: FAIL**"
+mr_json "owner:you,needs:human-verify"
+refused "an MR whose verdict is FAIL" "the verdict of EX-1 is current FAIL"
+verdict EX-1 PASS
+eq "a verdict on the pushed patch is current" "$("$LOOP_DIR/bin/loop-verdict" EX-1 check)" "current PASS"
+"$LOOP_DIR/bin/loop-verdict" EX-1 MAYBE "$TMP/notes" >/dev/null 2>&1 && fail "an unknown verdict is refused" || ok
+: > "$TMP/empty"
+"$LOOP_DIR/bin/loop-verdict" EX-1 PASS "$TMP/empty" >/dev/null 2>&1 && fail "a verdict without notes is refused" || ok
+mr_json "owner:you,needs:human-verify"
+eq "a dry run only checks the gates" "$(run --dry-run EX-1)" "would merge $URL into staging (pipeline success)"
 eq "a dry run changes nothing" "$([ -e "$CALLS" ] && echo called || echo none)" "none"
 
 OUT=$(run EX-1)
@@ -136,6 +156,15 @@ git -C "$MAIN" commit -q -am "other a"
 git -C "$MAIN" push -q origin staging
 HEAD_SHA=$(git -C "$MAIN" rev-parse feat/ex-2)
 "$LOOP_DIR/bin/loop-state" set EX-2 mr-open repo=web-app branch=feat/ex-2 mr="$URL"
+verdict EX-2 PASS
+git -C "$MAIN" switch -q feat/ex-2
+echo more >> "$MAIN/a.txt"
+git -C "$MAIN" commit -q -am "change a again"
+git -C "$MAIN" push -q origin feat/ex-2
+git -C "$MAIN" switch -q staging
+HEAD_SHA=$(git -C "$MAIN" rev-parse feat/ex-2)
+eq "a verdict on an older patch is stale" "$("$LOOP_DIR/bin/loop-verdict" EX-2 check)" "stale PASS"
+verdict EX-2 PASS
 mr_json "owner:you,needs:human-verify"
 python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); m["source_branch"]="feat/ex-2"; json.dump(m, open(sys.argv[1],"w"))' "$MR_JSON"
 OUT=$(run EX-2)
@@ -155,6 +184,7 @@ chmod +x "$ORIGIN/hooks/pre-receive"
 HEAD_SHA=$(git -C "$MAIN" rev-parse feat/ex-3)
 BASE_SHA=$(git -C "$ORIGIN" rev-parse staging)
 "$LOOP_DIR/bin/loop-state" set EX-3 mr-open repo=web-app branch=feat/ex-3 mr="$URL"
+verdict EX-3 PASS
 mr_json "owner:you,needs:human-verify"
 python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); m["source_branch"]="feat/ex-3"; json.dump(m, open(sys.argv[1],"w"))' "$MR_JSON"
 OUT=$(run EX-3)
@@ -164,6 +194,7 @@ eq "a protected base leaves the base as it was" "$(git -C "$ORIGIN" rev-parse st
 
 SELF_URL="https://git.example.com/team/web-app/-/merge_requests/7"
 "$LOOP_DIR/bin/loop-state" set EX-4 mr-open repo=web-app branch=feat/ex-3 mr="$SELF_URL"
+verdict EX-4 PASS
 mr_json "owner:you,needs:human-verify"
 python3 -I -c 'import json,sys; m=json.load(open(sys.argv[1])); m["source_branch"]="feat/ex-3"; json.dump(m, open(sys.argv[1],"w"))' "$MR_JSON"
 OUT=$(run EX-4)

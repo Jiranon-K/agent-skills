@@ -5,6 +5,7 @@ SPEC="$(pwd)/loop/bin/loop-spec"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+export LOOP_ORCA=off
 export LOOP_DIR="$TMP/loop"
 
 PASS=0 FAIL=0

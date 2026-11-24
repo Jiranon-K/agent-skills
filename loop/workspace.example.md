@@ -55,7 +55,7 @@ One task key per line. Only the owner adds a key here, and removes it when the t
 
 - project-a repos: `gitlab.com`, group `project-a`. glab's account there is shared, so every loop MR carries `owner:you`.
 - project-b repos: `gitlab.example.com`, group `example-team` (pass `-R gitlab.example.com/example-team/<repo>`).
-- Loop MR labels: `owner:you,needs:human-verify` (plus `needs:e2e` for UI changes). Loop MRs are always Drafts.
+- Loop MR labels: `owner:you,needs:human-verify` (plus `needs:e2e` for UI changes). Loop MRs open ready, never as Drafts.
 
 ## Repos
 

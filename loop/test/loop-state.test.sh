@@ -6,7 +6,9 @@ LS="$(pwd)/loop/bin/loop-state"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export LOOP_DIR="$TMP/loop" WT_ROOT="$TMP/worktree"
+export LOOP_DIR="$TMP/loop" WT_ROOT="$TMP/worktree" LOOP_ORCA_BIN="$TMP/orca-spy"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "%s/marks"\n' "$TMP" > "$TMP/orca-spy"
+chmod +x "$TMP/orca-spy"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 
 PASS=0 FAIL=0
@@ -87,6 +89,28 @@ grep -q '^main-repo' "$LOOP_DIR/repos" || printf 'main-repo %s main\n' "$TMP/mai
 eq "a new task's worktree is named after it" "$("$LS" path main-repo EX-8)" "$TMP/main/.claude/worktrees/EX-8"
 "$LS" set EX-10 working repo=main-repo wt="$TMP/main/.claude/worktrees/loop-1"
 eq "a task started in an old slot keeps its slot" "$("$LS" path main-repo EX-10)" "$TMP/main/.claude/worktrees/loop-1"
+
+"$LS" set EX-10 working session=abc-123
+eq "set keeps the Worker's session id" "$("$LS" get EX-10 session)" "abc-123"
+
+mkworktree EX-11
+"$LS" set EX-11 mr-open mr=https://example.com/mr/2
+eq "set shows the status on the task's terminal in Orca" "$(tail -n 1 "$TMP/marks")" "mark $TMP/main/.claude/worktrees/EX-11 รอ verify"
+LOCK="$(git -C "$TMP/main/.claude/worktrees/EX-11" rev-parse --absolute-git-dir)/index.lock"
+eq "unlock with no lock says so" "$("$LS" unlock EX-11)" "no index.lock"
+: > "$LOCK"
+errs "unlock refuses a fresh lock" unlock EX-11
+touch -t 202001010000 "$LOCK"
+echo busy > "$LOCK"
+touch -t 202001010000 "$LOCK"
+errs "unlock refuses a lock with content" unlock EX-11
+: > "$LOCK"
+touch -t 202001010000 "$LOCK"
+if pgrep -x git >/dev/null; then ok; else
+  "$LS" unlock EX-11 >/dev/null
+  [ -e "$LOCK" ] && fail "unlock removes an empty stale lock" || ok
+fi
+errs "unlock unknown ticket" unlock EX-99
 
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

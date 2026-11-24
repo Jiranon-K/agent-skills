@@ -18,7 +18,7 @@ Run these in one message:
 - `~/loop/bin/loop-state list` → `<task> status=… repo=… [branch=…] [mr=…] [ui=…]`
 - `~/loop/bin/loop-spec list` → `<task> <design status> repo=… risk=…`
 - The table under `### ต้อง grill ก่อน Agent เริ่มได้` in `~/loop/state/last-triage.md` (its task cells are links already; keep them). "ไม่มี" means none.
-- `claude agents --json` → a JSON array of live sessions; a session's `name` is `<role> <task>` (`loop` = Worker, `design` = Designer), with `id`, `status` and `state`.
+- `/Applications/Orca.app/Contents/Resources/bin/orca agent list --json` → `result.agents`, the live sessions; a session's `title` starts with `<role> <task>` (`loop` = Worker, `design` = Designer), followed by ` · <note>` once its status changed, and `state` is `working`, `waiting`, `blocked` or `done`. Match a session by that start of its title: every session shares one `worktreeId`, the Orca workspace.
 - The task URL base, the "Current sprint" table and the list "Out-of-sprint tasks the owner asked for" in `~/loop/workspace.md`. Link a card as `<base>/tasks/<KEY>`.
 - Per space in that table: `query_view` `space=<key>`, `sprint=<id>`, `assignee=me`, `view_type=table`, `group=none`. The keys it returns, plus the owner's list, are the sprint keys. The same call with `open=true` added gives the open sprint tasks; keep each one's `status` and `route`. A failed call means the board cannot be filtered: say so in one line above the board and show every task.
 
@@ -48,7 +48,7 @@ Stage 8 sub-state, in the card's `note`, from the MR:
 - label `needs:e2e` → `รอ e2e` and next `/loop-e2e <task>`.
 - otherwise label `needs:human-verify` → `รอ human verify` and next `/merge-approved <task>`.
 
-A session never decides a stage. A live session whose `name` names the task becomes the card's `session`: `<role> <state>` (`worker done`), opened with `claude attach <id>`.
+A session never decides a stage. A live session whose `name` names the task becomes the card's `session`: `<role> <state>` (`worker done`), opened from the Orca sidebar.
 
 ## 3. Find disagreements
 
@@ -56,7 +56,7 @@ Add one mismatch line per case, saying what each source says and the command to 
 
 - MR `state` is `merged` or `closed` but `loop-state` is not `merged`.
 - `loop-state` `merged` but the MR is `opened`.
-- `mr-open` MR is not a Draft, or lacks `needs:human-verify`.
+- `mr-open` MR lacks `needs:human-verify`, or `~/loop/bin/loop-verdict <task> check` does not print `current PASS` or `current PASS+NOTES`.
 - A `loop` Worker terminal is `working` for a task whose `loop-state` is not `working`, or `loop-state` is `working` with no live Worker terminal.
 - `loop-spec` `designing` with no live `design` terminal for the task.
 - A grill-table task that is also in `loop-state` or `loop-spec` as `approved`.
@@ -71,10 +71,10 @@ A `★` stage marks its header. When any ★ stage has tasks, the first line of 
 ★ รอคุณ 2 task
 ┌ Worker กำลังทำ (1) ──────────┐┌ ★ เปิด MR รอ verify (2) ─────┐┌ merge แล้ว (1) ──────────────┐
 │ APP-20  api                  ││ APP-12  web                  ││ APP-9   web  !510            │
-│   session worker working     ││   !519 Draft  รอ e2e         ││                              │
+│   session worker working     ││   !519  รอ e2e               ││                              │
 │                              ││   /loop-e2e APP-12           ││                              │
 │                              ││ APP-14  web                  ││                              │
-│                              ││   !517 Draft  human verify   ││                              │
+│                              ││   !517  human verify         ││                              │
 │                              ││   /merge-approved APP-14     ││                              │
 └──────────────────────────────┘└──────────────────────────────┘└──────────────────────────────┘
 ```

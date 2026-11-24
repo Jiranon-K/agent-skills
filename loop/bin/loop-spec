@@ -97,7 +97,7 @@ cmd_list() {
     task=$(basename "$dir")
     status=$(status_of "$task")
     [ $# -eq 0 ] || [ "$status" = "$1" ] || continue
-    echo "$task $status $(tr '\n' ' ' < "$dir/meta" 2>/dev/null | sed 's/ $//')"
+    echo "$task $status $([ -f "$dir/meta" ] && tr '\n' ' ' < "$dir/meta" | sed 's/ $//')"
   done
 }
 

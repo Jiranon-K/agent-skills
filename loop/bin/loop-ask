@@ -4,7 +4,7 @@ set -u
 MAX_DIFF_BYTES="${LOOP_ASK_MAX_DIFF_BYTES:-200000}"
 GPT_MODEL="${LOOP_ASK_GPT:-gpt-6-luna}"
 GPT_EFFORT="${LOOP_ASK_GPT_EFFORT:-high}"
-GEMINI_MODEL="${LOOP_ASK_GEMINI:-gemini-3.8-flash-high}"
+GEMINI_MODEL="${LOOP_ASK_GEMINI:-gemini-4-neon-high}"
 GEMINI_TIMEOUT="${LOOP_ASK_TIMEOUT:-600s}"
 ASK_STATE="${LOOP_DIR:-$HOME/loop}/state"
 BASE_REF=""
@@ -17,7 +17,7 @@ The model reads files under the current directory and edits nothing.
   loop-ask <gpt|gemini> <prompt file> [<diff base ref>]
 
   gpt     GPT-6-Luna (high) through codex, in its read-only sandbox: it may also run read-only commands
-  gemini  Gemini 3.8 Flash (high) through agy: file reads only, no command
+  gemini  Gemini 4 Neon (high) through agy: file reads only, no command
 
 With a base ref, the output of `git diff <base ref>...HEAD` is appended to the prompt.
 USAGE
@@ -69,7 +69,7 @@ ask_gemini() {
   local bundle status
   command -v agy >/dev/null 2>&1 || die "agy is not installed"
   bundle=$(build_bundle "$1") || die "could not build a bundle under $ASK_STATE"
-  answer=$(cd "$bundle" && agy -p "Use only your file-read tools and run no shell command. Read prompt.md and answer it. Every file it names is under this directory: an absolute path /a/b is at ./a/b, and a changed file of the diff is at its repo path." --model "$GEMINI_MODEL" --mode plan --print-timeout "$GEMINI_TIMEOUT" < /dev/null 2>&1)
+  answer=$(cd "$bundle" && agy -p "Use only your file-read tools and run no shell command. Read prompt.md and answer it. Write the whole answer in your reply itself: create no plan, no artifact and no file. Every file it names is under this directory: an absolute path /a/b is at ./a/b, and a changed file of the diff is at its repo path." --model "$GEMINI_MODEL" --mode plan --print-timeout "$GEMINI_TIMEOUT" < /dev/null 2>&1)
   status=$?
   rm -rf "$bundle"
   case "$answer" in *"no output produced"*) status=1 ;; esac

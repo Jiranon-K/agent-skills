@@ -1,6 +1,6 @@
 ---
 name: team-context
-description: Interviews the user one question at a time about themselves and their teammates (roles, duties, how to talk to each person, @mentions per app, chat channels, and how Claude may read or send messages) and saves the answers as a private per-team file outside any repo. Use when setting up a new machine or team, before reply, blocker-ping, be-review or daily-standup need to know who is who, or when a teammate joins or leaves.
+description: Interviews the user one question at a time about themselves and their teammates (roles, duties, how to talk to each person, @mentions per app, chat channels, and how Claude may read or send messages) and saves the answers as a private per-team file outside any repo. Use when setting up a new machine or team, before daily-standup needs to know who is who, or when a teammate joins or leaves.
 argument-hint: "[team-name] [update]"
 ---
 
@@ -12,7 +12,7 @@ read this file instead of guessing names, tone or mentions.
 
 ## When to use
 
-- First time on a machine or a team, or `reply` / `blocker-ping` says no team file was found.
+- First time on a machine or a team, or `daily-standup` says no team file was found.
 - Someone joined, left, changed role, or a channel moved → run with `update`.
 
 ## When not to use
@@ -76,5 +76,4 @@ read this file instead of guessing names, tone or mentions.
 
 ## Next Step
 
-The file is ready: `reply`, `blocker-ping`, `be-review` and `daily-standup` pick it up
-on their next run. Re-run `/team-context <team> update` when the team changes.
+The file is ready: `daily-standup` picks it up on its next run. Re-run `/team-context <team> update` when the team changes.

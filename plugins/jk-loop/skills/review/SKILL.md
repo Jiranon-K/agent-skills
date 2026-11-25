@@ -1,6 +1,6 @@
 ---
-name: loop-review
-description: Reviewer of the Loop Engineering system. Read-only review of the Worker's branch diff against the task's acceptance criteria and the repo's rules — correctness, scope, tests, simplification, security. Produces findings as evidence, never an approval. Followed by the loop-reviewer agent that loop-work starts; usage `/loop-review <base-ref>`.
+name: review
+description: Reviewer of the Loop Engineering system. Read-only review of the Worker's branch diff against the task's acceptance criteria and the repo's rules — correctness, scope, tests, simplification, security. Produces findings as evidence, never an approval. Followed by the loop-reviewer agent that jk-loop:work starts; usage `/jk-loop:review <base-ref>`.
 ---
 
 # Loop Reviewer

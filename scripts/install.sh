@@ -2,7 +2,7 @@
 # Install this repo into a Mac's Claude Code setup. bash 3.2 compatible.
 #
 # Generic skills are symlinked, so `git pull` updates them. Everything that
-# holds your own setup (claude/, loop/, scheduled/, skills/loop/) is a template:
+# holds your own setup (claude/, loop/, scheduled/, plugins/jk-loop/) is a template:
 # it is copied only when missing and never overwritten, so fill in its
 # placeholders after the first install.
 #
@@ -65,12 +65,10 @@ copy_template() {
 
 for dir in skills/*/*/; do
   [ -f "$dir/SKILL.md" ] || continue
-  name="$(basename "$dir")"
-  case "$dir" in
-    skills/loop/*) copy_template "${dir%/}" "$HOME/.claude/skills/$name" ;;
-    *)             link "${dir%/}" "$HOME/.claude/skills/$name" ;;
-  esac
+  link "${dir%/}" "$HOME/.claude/skills/$(basename "$dir")"
 done
+
+copy_template plugins/jk-loop "$HOME/.claude/skills/jk-loop"
 
 for f in CLAUDE.md AGENTS.md statusline.sh; do
   copy_template "claude/$f" "$HOME/.claude/$f"

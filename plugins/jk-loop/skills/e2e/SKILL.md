@@ -1,6 +1,6 @@
 ---
-name: loop-e2e
-description: User-run. Runs browser e2e for a loop MR with Claude in Chrome, uploads screenshots to the MR, and removes the needs:e2e label. Usage `/loop-e2e <task key>`. Only run when the user invokes it.
+name: e2e
+description: User-run. Runs browser e2e for a loop MR with Claude in Chrome, uploads screenshots to the MR, and removes the needs:e2e label. Usage `/jk-loop:e2e <task key>`. Only run when the user invokes it.
 disable-model-invocation: true
 ---
 

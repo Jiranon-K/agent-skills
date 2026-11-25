@@ -11,7 +11,7 @@ OWNER_LABEL=$(printf '%s\n' "${LOOP_MR_LABELS:-}" | tr ',' '\n' | grep -m1 '^own
 
 usage() {
   cat >&2 <<'USAGE'
-loop-merge merges the open MR of one Loop task the way /merge-approved does, and nothing else.
+loop-merge merges the open MR of one Loop task the way /jk-loop:merge-approved does, and nothing else.
 
   loop-merge <task>             check the gates, remove needs:human-verify, merge it
   loop-merge --dry-run <task>   check the gates only; change nothing
@@ -112,7 +112,7 @@ check_gates() {
   [ -n "$OWNER_LABEL" ] || refuse "LOOP_MR_LABELS in config.sh has no owner: label"
   labels=",$(mr_field labels),"
   case "$labels" in *",$OWNER_LABEL,"*) ;; *) refuse "MR !$IID lacks the label $OWNER_LABEL" ;; esac
-  case "$labels" in *",needs:e2e,"*) refuse "MR !$IID still has needs:e2e: run /loop-e2e $TASK first" ;; esac
+  case "$labels" in *",needs:e2e,"*) refuse "MR !$IID still has needs:e2e: run /jk-loop:e2e $TASK first" ;; esac
   [ "$(mr_field head_pipeline.status)" != failed ] || refuse "the head pipeline of MR !$IID failed"
   unresolved=$(count_unresolved) || refuse "could not read the threads of MR !$IID"
   [ "$unresolved" = 0 ] || refuse "MR !$IID has $unresolved unresolved thread(s)"

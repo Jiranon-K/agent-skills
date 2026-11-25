@@ -1,6 +1,6 @@
 ---
-name: loop-design-review
-description: User-run. The owner's design gate of the Loop Engineering system — shows the Designer's package for a task, takes the owner's verdict, then approves it as a ready spec or sends the pushback back for a redesign. Usage `/loop-design-review [<task key>]`. Only run when the user invokes it.
+name: design-review
+description: User-run. The owner's design gate of the Loop Engineering system — shows the Designer's package for a task, takes the owner's verdict, then approves it as a ready spec or sends the pushback back for a redesign. Usage `/jk-loop:design-review [<task key>]`. Only run when the user invokes it.
 disable-model-invocation: true
 ---
 

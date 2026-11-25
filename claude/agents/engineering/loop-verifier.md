@@ -28,7 +28,7 @@ You give the one verdict the owner trusts before a merge. You did not write this
    - `PASS`: you saw every criterion hold.
    - `PASS+NOTES`: every criterion holds, and the notes name something the owner should know that does not break a criterion.
    - `FAIL`: a criterion does not hold, or you could not observe it. "Could not run it" is never a pass.
-   - One exception: when the only thing you could not observe is a browser walk and the MR carries `needs:e2e`, the verdict is `PASS+NOTES` and the notes name each criterion the owner's `/loop-e2e` must cover.
+   - One exception: when the only thing you could not observe is a browser walk and the MR carries `needs:e2e`, the verdict is `PASS+NOTES` and the notes name each criterion the owner's `/jk-loop:e2e` must cover.
    - Block only for a problem you can show with a failing run on this branch. A problem the base already has does not block unless the change copies it or newly reaches it.
 6. Write `~/loop/state/verdict-<task>.md`:
    ```

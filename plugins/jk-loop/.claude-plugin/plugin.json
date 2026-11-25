@@ -1,0 +1,10 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "jk-loop",
+  "version": "0.1.0",
+  "description": "Loop Engineering: takes a tracker task from card to a verified merge request, with a design gate and a merge gate for the owner.",
+  "author": {
+    "name": "Jiranon Kuntong"
+  },
+  "repository": "https://github.com/Jiranon-K/agent-skills"
+}

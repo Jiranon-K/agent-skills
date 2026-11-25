@@ -67,7 +67,7 @@ print(json.dumps({\"ok\": True, \"result\": {\"agents\": [{\"kind\": \"terminal\
   "terminal rename") printf "%s\t%s\n" "$4" "$6" >> "$HOME/marks"; echo "{\"ok\": true}" ;;
 esac'
 fake claude 'case "$*" in
-  *"/loop-triage"*)
+  *"/jk-loop:triage"*)
     printf "%s\n" "$*" > "$HOME/triage-prompt.txt"
     if [ -f "$HOME/triage-out" ]; then cat "$HOME/triage-out"; exit 0; fi
     printf "NOTIFY: picked\nPICK: EX-2 web-app medium\nDESIGN: EX-1 web-app low\nDESIGN: EX-5 web-app low\nDESIGN: OT-1 web-app,api high\nDESIGN: UT-1 api low\nCLOSED: EX-9\n### report\n" ;;
@@ -115,7 +115,7 @@ has "triage tools use the configured MCP server" "$FAKE_HOME/triage-prompt.txt" 
 eq "pstack link points at the plugin" "$(readlink "$LOOP/pstack")" "$FAKE_HOME/.claude/plugins/cache/market/pstack/1.0.0"
 
 eq "worker is started for the ready spec" "$(state get EX-2 status)" "working"
-eq "worker session runs loop-work" "$(session_field "loop EX-2" command)" "/loop-work EX-2 web-app medium"
+eq "worker session runs jk-loop:work" "$(session_field "loop EX-2" command)" "/jk-loop:work EX-2 web-app medium"
 eq "worker session asks for no permission" "$(session_field "loop EX-2" mode)" "bypassPermissions"
 eq "worker session opens in a worktree named after its task" "$(session_field "loop EX-2" folder)" "$TMP/web-app/.claude/worktrees/EX-2"
 case "$(session_field "loop EX-2" deny)" in *"loop-spec approve"*) ok ;; *) fail "worker may not approve a spec" ;; esac
@@ -124,7 +124,7 @@ eq "worker session starts under a new session id" "$(session_field "loop EX-2" h
 eq "the Worker's session id is kept in its state" "$(state get EX-2 session)" "$(session_field "loop EX-2" session)"
 
 eq "designer claims the design" "$(spec status EX-1)" "designing"
-eq "designer session runs loop-design" "$(session_field "design EX-1" command)" "/loop-design EX-1 web-app low"
+eq "designer session runs jk-loop:design" "$(session_field "design EX-1" command)" "/jk-loop:design EX-1 web-app low"
 eq "designer session asks for no permission" "$(session_field "design EX-1" mode)" "bypassPermissions"
 eq "designer session may read the loop folder from the shell" "$(session_field "design EX-1" adddir)" "$LOOP"
 eq "designer session opens in the main checkout" "$(session_field "design EX-1" folder)" "$TMP/web-app"
@@ -141,7 +141,7 @@ eq "a second task of the same space waits" "$(spec status EX-5)" "none"
 has "the waiting task is logged" "$LOG" "designer skipped — EX-5: no free Designer slot in EX"
 eq "another space gets its own Designer" "$(spec status OT-1)" "designing"
 eq "a design over several repos opens in the first repo" "$(session_field "design OT-1" folder)" "$TMP/web-app"
-eq "a design over several repos keeps every repo key" "$(session_field "design OT-1" command)" "/loop-design OT-1 web-app,api high"
+eq "a design over several repos keeps every repo key" "$(session_field "design OT-1" command)" "/jk-loop:design OT-1 web-app,api high"
 eq "the other repo is a working folder" "$(session_field "design OT-1" dirs)" "$LOOP $TMP/api"
 case "$(session_field "design OT-1" deny)" in *"Edit(/$TMP/api/**)"*) ok ;; *) fail "designer may not edit the other repo" ;; esac
 case "$(session_field "design OT-1" deny)" in *"loop-spec part"*) ok ;; *) fail "designer may not hand out a part" ;; esac

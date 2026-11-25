@@ -22,7 +22,7 @@ local files with wt-setup, and runs the repo's dev command there. The dev comman
 with every character of the key that is not a letter or digit written as "_".
 
 A session runs "here" as a background command to keep the server inside itself.
-"stop" keeps the worktree. /merge-approved removes the worktree.
+"stop" keeps the worktree. /jk-loop:merge-approved removes the worktree.
 USAGE
   exit 2
 }

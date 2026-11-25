@@ -1,6 +1,6 @@
 ---
-name: loop-work
-description: Worker of the Loop Engineering system. Runs in its own Claude Code session, in an Orca terminal inside a prepared git worktree, takes one Workspace task end to end — claim, implement against the approved design with the agent that fits the work, verify, review by findings that a run proves, fix, an MR opened ready with evidence, a verdict from an agent that did not write the code, a watch to merge-ready, handoff comment — and records state with loop-state. Started by ~/loop/bin/loop-run.sh; usage `/loop-work <task key> <repo key> <risk>`.
+name: work
+description: Worker of the Loop Engineering system. Runs in its own Claude Code session, in an Orca terminal inside a prepared git worktree, takes one Workspace task end to end — claim, implement against the approved design with the agent that fits the work, verify, review by findings that a run proves, fix, an MR opened ready with evidence, a verdict from an agent that did not write the code, a watch to merge-ready, handoff comment — and records state with loop-state. Started by ~/loop/bin/loop-run.sh; usage `/jk-loop:work <task key> <repo key> <risk>`.
 ---
 
 # Loop Worker
@@ -15,7 +15,7 @@ Read first: `~/loop/workspace.md` (tracker facts), the repo's section in `~/Home
 - Work only in the current directory. It must be the path `~/loop/bin/loop-state path <repo> <task>` prints; if not, stop blocked: `not in a loop worktree`.
 - Never read, print or edit `.env*`, `.npmrc` or any secret. Never touch production config or credentials. Write migrations as code if the task needs one, but never run a migration or backfill against a real database.
 - Never force-push, merge, rebase or reset. Push only with `~/loop/bin/loop-push` (no arguments: it pushes the current feature branch and refuses protected branches); plain `git push` is denied.
-- Never run `~/loop/bin/loop-merge` or `~/loop/bin/loop-clean` on your own, during the task or after it. They run only as steps of `/merge-approved <task>` when the owner types it in this session.
+- Never run `~/loop/bin/loop-merge` or `~/loop/bin/loop-clean` on your own, during the task or after it. They run only as steps of `/jk-loop:merge-approved <task>` when the owner types it in this session.
 - Stay in the task's scope. No unrelated refactors. Never touch another person's task or feature directory.
 - Run every heavy command (test suite, build, `./init.sh`, e2e) through `~/loop/bin/loop-heavy <command>`: other Workers share this 8 GB machine. Before you finish, make sure no test runner, headless browser or dev server you started is still running.
 - If the same verification fails after 2 fix attempts, stop blocked with the failing command and error summary.
@@ -111,7 +111,7 @@ The pstack skills live under `~/loop/pstack/skills/<name>/SKILL.md`. The `Skill`
      `## Tradeoffs` takes its rows from the design's `## What was chosen` table plus one row per fork you settled yourself (every item under **ตัดสินใจแทน**); leave the section out when there was no real choice. Put what the owner must do in `Blast Radius`. Loop detail goes in collapsed `<details>` blocks at the end of `Verification`, one each: **Review** (proven findings and their fixes, dropped findings as a count per reviewer with the reason, and which reviewers ran), **Deviations from the design** (or "none"), and `decisions.tsv` from the package as a table. Upload e2e screenshots with `~/loop/bin/loop-upload <task> <png>...`: it prints one markdown image line per file to paste into the description. Never upload with `glab api` (it answers HTTP 400 for a file) or a script of your own. No footer line after the last section. The verdict is not part of the description: `loop-verdict` posts it on the MR as a note.
    - `~/loop/bin/loop-state set <task> mr-open branch=<branch> mr=<MR URL> ui=<yes|no>`, then `add_task_link <task> <MR URL>` and `transition_task` to the "MR open" status.
    - **Verdict**: start a `loop-verifier` agent with the task key, the repo key and the base ref, and nothing of your own account of the work: it reads the spec and the diff itself. It runs each acceptance criterion against the pushed branch and records `PASS`, `PASS+NOTES` or `FAIL` with `loop-verdict`, which posts the verdict on the MR. On `FAIL`, fix what it showed (step 7), push, and start a fresh `loop-verifier`. Two `FAIL`s on the same criterion: stop blocked with the criterion and both runs.
-   - **Watch**: run `~/loop/bin/loop-watch --wait <task>` as a background command of this session, exactly that command with nothing joined to it. It asks the same gates `/merge-approved` will, and its last line decides:
+   - **Watch**: run `~/loop/bin/loop-watch --wait <task>` as a background command of this session, exactly that command with nothing joined to it. It asks the same gates `/jk-loop:merge-approved` will, and its last line decides:
      - `READY`: go on to the handoff.
      - `WAITING <reason>` (the owner's e2e, a merge-back, a pipeline still running after the wait): go on to the handoff and name what it waits for.
      - `BLOCKED` on a failed pipeline: read the failed job's log first (`glab ci trace <job id>`; add `-R <host>/<path>` from the MR URL when glab cannot tell the project from the remote). A failure in code this branch changed gets a commit. A failure in code the diff never touches is a stale base or a flake: retry that job once with `glab ci retry <job id>`, never a second time. An identical second failure is not a flake.
@@ -120,8 +120,8 @@ The pstack skills live under `~/loop/pstack/skills/<name>/SKILL.md`. The `Skill`
      - `BLOCKED` on the verdict: a push changed the patch after the verdict. Start a fresh `loop-verifier`.
      Push once per fix wave, then run the watch again. Two fix waves at most; after that the handoff says what is still blocked and why.
    - Workspace: post the handoff comment (below), then `finish_work <task> done "<one line>"`.
-   - **Local delivery** (remote not allowed): commit everything, write the MR title and description to `~/loop/state/mr-body-<task>.md` in the same shape, post the handoff comment with "MR: ยังไม่เปิด — repo นี้ห้าม agent push" and the exact commands for the owner, run from the main checkout because the slot worktree is freed later (`git -C <main checkout> push -u origin <branch>`, then `~/loop/bin/loop-mr <task>` from a checkout of that branch), `finish_work <task> done`, leave the status at "Working", and run `~/loop/bin/loop-state set <task> ready-to-ship branch=<branch> ui=<yes|no>`. The verifier needs the pushed branch, so no verdict is recorded here: say in the handoff that `/merge-approved` asks for one after the push.
-9. **Blocked** at any point: `update_work_state awaiting_input` with the reason, post a question comment in the format of the `loop-triage` skill (mention only the assignee; name who to ask if known), add label `needs:human`, set `route=human`, `finish_work <task> error "<reason>"`, and `~/loop/bin/loop-state set <task> blocked`. Leave the status where it is.
+   - **Local delivery** (remote not allowed): commit everything, write the MR title and description to `~/loop/state/mr-body-<task>.md` in the same shape, post the handoff comment with "MR: ยังไม่เปิด — repo นี้ห้าม agent push" and the exact commands for the owner, run from the main checkout because the slot worktree is freed later (`git -C <main checkout> push -u origin <branch>`, then `~/loop/bin/loop-mr <task>` from a checkout of that branch), `finish_work <task> done`, leave the status at "Working", and run `~/loop/bin/loop-state set <task> ready-to-ship branch=<branch> ui=<yes|no>`. The verifier needs the pushed branch, so no verdict is recorded here: say in the handoff that `/jk-loop:merge-approved` asks for one after the push.
+9. **Blocked** at any point: `update_work_state awaiting_input` with the reason, post a question comment in the format of the `jk-loop:triage` skill (mention only the assignee; name who to ask if known), add label `needs:human`, set `route=human`, `finish_work <task> error "<reason>"`, and `~/loop/bin/loop-state set <task> blocked`. Leave the status where it is.
 
 ## Handoff comment (Thai, for a human; mention only the assignee)
 
@@ -140,8 +140,8 @@ The pstack skills live under `~/loop/pstack/skills/<name>/SKILL.md`. The `Skill`
 **ขั้นตอนต่อไป**
 ☐ 1. <วิธีเช็คด้วยมือ ทำอะไร → ต้องเห็นอะไร>
 ☐ 2. ...
-<เฉพาะงานที่มี UI> เปิดดูใน browser → `~/loop/bin/loop-preview <task>` · เก็บ e2e ลง MR → /loop-e2e <task>
-ผ่าน → สั่ง /merge-approved <task> ใน session นี้หรือ session ไหนก็ได้ · ไม่ผ่าน → ปิด MR แล้วรับงานต่อเอง (หรือสั่ง Loop ให้แก้)
+<เฉพาะงานที่มี UI> เปิดดูใน browser → `~/loop/bin/loop-preview <task>` · เก็บ e2e ลง MR → /jk-loop:e2e <task>
+ผ่าน → สั่ง /jk-loop:merge-approved <task> ใน session นี้หรือ session ไหนก็ได้ · ไม่ผ่าน → ปิด MR แล้วรับงานต่อเอง (หรือสั่ง Loop ให้แก้)
 MR: <url>
 ```
 
@@ -154,6 +154,6 @@ After the last `loop-state set` (any outcome), run `~/loop/bin/loop-next` so the
 The session stays open in its Orca terminal and the owner may ask for more here, from the desktop or the phone. When more sessions are open than the Worker limit, the runner closes the one idle longest; `claude --resume <session id from loop-state>` in this worktree opens it again. The worktree stays until the task is merged and `loop-clean` removes it, and this session keeps its denied calls.
 
 - Asked to show the change in a browser: run `~/loop/bin/loop-preview here <task>` as a background command of this session. It uses this task's worktree (and recreates it only if it was removed by hand) and runs the repo's dev server inside this session. Say which URL to open (from the repo's docs) once it answers, and stop it with `~/loop/bin/loop-preview stop <task>` when the owner is done. Never ask the owner to grant Bash or to type git commands for this.
-- Asked to merge: the owner runs `/merge-approved <task>` here and you follow it. `loop-merge` keeps this worktree while this session runs in it; the next run's `loop-clean` removes it.
-- Asked for e2e evidence on the MR: the owner runs `/loop-e2e <task>` here and you follow it. Claude in Chrome is allowed for that request only: never open the browser on your own, during the task or after it.
+- Asked to merge: the owner runs `/jk-loop:merge-approved <task>` here and you follow it. `loop-merge` keeps this worktree while this session runs in it; the next run's `loop-clean` removes it.
+- Asked for e2e evidence on the MR: the owner runs `/jk-loop:e2e <task>` here and you follow it. Claude in Chrome is allowed for that request only: never open the browser on your own, during the task or after it.
 - Asked for a code change: make it here, in this worktree, with the same verify and review steps, then push it with `~/loop/bin/loop-push` (a repo the agent cannot push to: commit only and say so) and add one MR note with `glab mr note` that says what changed and how it was checked. The push makes the verdict stale and `loop-merge` refuses a stale one: start a fresh `loop-verifier`, then run `~/loop/bin/loop-watch <task>` and report its line. If the worktree was removed, say so and that a new session in the path `loop-preview` printed can take it.

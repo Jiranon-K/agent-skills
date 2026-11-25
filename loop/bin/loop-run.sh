@@ -1,10 +1,10 @@
 #!/bin/bash
-# Loop Engineering runner. Started by /loop-start, and by loop-next when a session ends.
+# Loop Engineering runner. Started by /jk-loop:start, and by loop-next when a session ends.
 # One run: Coordinator (triage + route + pick, headless) → for each picked task, while Worker slots are free:
-#   prepare a worktree and open a Claude Code session in an Orca terminal running `/loop-work <task> <repo> <risk>`.
+#   prepare a worktree and open a Claude Code session in an Orca terminal running `/jk-loop:work <task> <repo> <risk>`.
 #   The Worker session claims the task, builds, gets an independent review and verdict, opens an MR and records loop-state itself,
 #   then calls loop-next so a freed slot is filled the same day. Each task gets its own worktree (.claude/worktrees/<task>),
-#   kept until /merge-approved removes it; it inherits the main checkout's folder trust.
+#   kept until /jk-loop:merge-approved removes it; it inherits the main checkout's folder trust.
 # One task only:                    ONLY_TASK=EX-1 ~/loop/bin/loop-run.sh
 # Triage only (no Worker):          TRIAGE_ONLY=1 ~/loop/bin/loop-run.sh
 # Parallel Workers (default 2):     LOOP_MAX_WORKERS=3 ~/loop/bin/loop-run.sh
@@ -63,7 +63,7 @@ summarize() {
 🔨 กำลังทำ   <task → Worker session ที่เปิด (risk) พร้อมลิงก์> หรือ —
 🧩 design    <task → Designer session ที่เปิดรอบนี้> (แสดงเฉพาะเมื่อมี)
 🧹 cleanup   <บรรทัด "cleanup: archived … removed … kept …" จาก log และของที่ kept พร้อมเหตุผล> (แสดงเฉพาะเมื่อมี)
-👀 รอรีวิว   <task ที่ design เป็น proposed → สั่ง /loop-design-review <task>> (แสดงเฉพาะเมื่อมี)
+👀 รอรีวิว   <task ที่ design เป็น proposed → สั่ง /jk-loop:design-review <task>> (แสดงเฉพาะเมื่อมี)
 ⛔ หยุด      <task: เหตุผลสั้น> (แสดงเฉพาะเมื่อมี)
 ❓ ต้อง grill  <task → ถามใคร เรื่องอะไร> (แสดงเฉพาะเมื่อมี ห้ามยกตัวคำถามมาซ้ำ)
 💤 ไม่ขยับ    <N ใบ>
@@ -213,7 +213,7 @@ start_designer() {
   fi
   DID=1
   SESSION_DIRS="$other_dirs"
-  if where=$(open_session "design $task" "$first_dir" "$(new_session_id)" "/loop-design $task $repos $risk"); then
+  if where=$(open_session "design $task" "$first_dir" "$(new_session_id)" "/jk-loop:design $task $repos $risk"); then
     log "## $NOW designer started $task ($repos, risk:$risk) — $where" "package: $("$SPEC" path "$task")" ""
     notify "Designer เริ่ม $task ($repos, risk:$risk)"
   else
@@ -258,7 +258,7 @@ start_worker() {
   "$STATE" set "$task" working repo="$repo" branch="$branch" session="$session"
   DID=1
   SESSION_DENY=("${WORKER_DENY[@]}")
-  if where=$(open_session "loop $task" "$wt" "$session" "/loop-work $task $repo $risk"); then
+  if where=$(open_session "loop $task" "$wt" "$session" "/jk-loop:work $task $repo $risk"); then
     log "## $NOW worker started $task ($repo, risk:$risk) — $where" "worktree: $wt" ""
     notify "Worker เริ่ม $task ($repo, risk:$risk)"
   else
@@ -316,7 +316,7 @@ $OTHER_RELEASE_NOTE"
 spec_ready() { grep -qx 'status: ready' "$SPECS/$1.md" 2>/dev/null; }
 READY_SPECS=$(grep -lx 'status: ready' "$SPECS"/*.md 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/\.md$//')
 
-OUT=$(cd "$LOOP_DIR" && claude -p "/loop-triage
+OUT=$(cd "$LOOP_DIR" && claude -p "/jk-loop:triage
 
 Only task: ${ONLY_TASK:-(all)}
 

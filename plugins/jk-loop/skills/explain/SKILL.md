@@ -1,6 +1,6 @@
 ---
-name: loop-explain
-description: Explains one or more Loop Engineering tasks to the owner from the record (card, comments, approved spec, design package, decisions, commits, MR) in six plain Thai headings, ปัญหา / วิธีแก้ / เราแก้ / ผลลัพธ์ที่ได้ / ติดไรไหม / step ต่อไป, citing sources and marking inferences. Read-only. Usage `/loop-explain <task> [<task>...]`.
+name: explain
+description: Explains one or more Loop Engineering tasks to the owner from the record (card, comments, approved spec, design package, decisions, commits, MR) in six plain Thai headings, ปัญหา / วิธีแก้ / เราแก้ / ผลลัพธ์ที่ได้ / ติดไรไหม / step ต่อไป, citing sources and marking inferences. Read-only. Usage `/jk-loop:explain <task> [<task>...]`.
 ---
 
 # Loop Explain
@@ -48,6 +48,6 @@ One block per task, in Thai, in this exact shape:
 - Card link: the task URL base in `~/loop/workspace.md`, as `<base>/tasks/<KEY>`.
 - Cite inline and briefly: `(spec AC 2)`, `(design.md)`, `(decisions.tsv: review)`, `(MR !519)`, `(comment 19 พ.ย. owner)`, `(abc1234)`.
 - An inference gets `น่าจะ` and `(อนุมาน)`. When the record does not answer a heading, write `record ไม่ได้บอก` and name what is missing, rather than filling it in.
-- `step ต่อไป` follows the stage: design `proposed` → `/loop-design-review <task>`; MR with `needs:e2e` → `/loop-e2e <task>`; MR with `needs:human-verify` → verify, then `/merge-approved <task>`; `ready-to-ship` → the owner pushes; `blocked` → who to ask and the question from the comment; `merged` → `loop-clean` archives it.
+- `step ต่อไป` follows the stage: design `proposed` → `/jk-loop:design-review <task>`; MR with `needs:e2e` → `/jk-loop:e2e <task>`; MR with `needs:human-verify` → verify, then `/jk-loop:merge-approved <task>`; `ready-to-ship` → the owner pushes; `blocked` → who to ask and the question from the comment; `merged` → `loop-clean` archives it.
 - When the fix has three or more moving parts, add one short series of box diagrams after `เราแก้`, each redrawing the last and adding one part (box art, not mermaid).
 - Smallest complete answer: no intro, no closing summary. Offer to go deeper in one line at the end only if there is more in the record worth reading.

@@ -1,0 +1,14 @@
+{
+  "name": "agent-skills",
+  "description": "Plugins from the agent-skills repo: the Loop Engineering skills as jk-loop.",
+  "owner": {
+    "name": "Jiranon Kuntong"
+  },
+  "plugins": [
+    {
+      "name": "jk-loop",
+      "source": "./plugins/jk-loop",
+      "description": "Loop Engineering: takes a tracker task from card to a verified merge request, with a design gate and a merge gate for the owner."
+    }
+  ]
+}

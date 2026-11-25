@@ -1,5 +1,5 @@
 ---
-name: loop-triage
+name: triage
 description: Coordinator of the Loop Engineering system. Lists the owner's open Workspace tasks, routes untriaged ones (route agent/human, risk/type labels, a question comment when unclear), picks up to N agent-routed tasks with an approved spec for Workers, and sends agent-routed tasks without one to a Designer. Never codes, never moves a status. Used by ~/loop/bin/loop-run.sh.
 ---
 
@@ -84,7 +84,7 @@ The prompt gives `Worker slots: N`. Pick up to N tasks (0 → none) that have `r
 
 Never pick a `web-app` task while the release context says merge-back is pending (>0). Never pick two tasks for the same repo in one run. Never pick a task whose design in the "Designs" list names several repos (`repo=a,b`) or is `split`: a Worker builds one repo, so each part is picked as its own task once the owner has handed it out.
 
-A **ready spec** is `~/loop/specs/<task key>.md` with the line `status: ready`: the owner approved the Designer's package with `/loop-design-review`, or wrote the spec by hand. Never write or edit a spec. A `route=agent` task without one is not picked: it goes to design (below).
+A **ready spec** is `~/loop/specs/<task key>.md` with the line `status: ready`: the owner approved the Designer's package with `/jk-loop:design-review`, or wrote the spec by hand. Never write or edit a spec. A `route=agent` task without one is not picked: it goes to design (below).
 
 ## Design
 
@@ -117,7 +117,7 @@ release: web-app ถัดไป <date> (cut-off จันทร์ 14:00) · me
 ### รอรีวิว design
 | task | ชื่อ | risk | สั่ง |
 |---|---|---|---|
-(every task whose design status is `proposed`; "สั่ง" = `/loop-design-review <task key>`; or "ไม่มี")
+(every task whose design status is `proposed`; "สั่ง" = `/jk-loop:design-review <task key>`; or "ไม่มี")
 
 ### ต้อง grill ก่อน Agent เริ่มได้
 | task | ถามใคร | เรื่อง | ถามไว้เมื่อ |

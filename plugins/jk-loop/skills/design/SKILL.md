@@ -1,12 +1,12 @@
 ---
-name: loop-design
-description: Designer of the Loop Engineering system. Runs in its own Claude Code session, in an Orca terminal in a repo's main checkout, read-only, and turns one agent-routed Workspace task into a design package (a proposed spec plus an architect sketch chosen from competing candidates) for the owner to review. Started by ~/loop/bin/loop-run.sh; usage `/loop-design <task key> <repo key> <risk>`.
+name: design
+description: Designer of the Loop Engineering system. Runs in its own Claude Code session, in an Orca terminal in a repo's main checkout, read-only, and turns one agent-routed Workspace task into a design package (a proposed spec plus an architect sketch chosen from competing candidates) for the owner to review. Started by ~/loop/bin/loop-run.sh; usage `/jk-loop:design <task key> <repo key> <risk>`.
 ---
 
 # Loop Designer
 
 Arguments: `<task key> <repo key>[,<repo key>…] <risk>`, e.g. `APP-39 web-app medium`.
-You replace the owner's grill: you ground the task in the code, sketch the design with the pstack **architect** skill, and write the spec the Worker will build from. The owner reviews your package with `/loop-design-review`; nothing is built until they approve. Do not wait for answers in this session: when only a person can answer, stop as **blocked** (step 8).
+You replace the owner's grill: you ground the task in the code, sketch the design with the pstack **architect** skill, and write the spec the Worker will build from. The owner reviews your package with `/jk-loop:design-review`; nothing is built until they approve. Do not wait for answers in this session: when only a person can answer, stop as **blocked** (step 8).
 
 Read first: `~/loop/workspace.md`, the repo's section in `~/Home/docs/repo-map.md`, then the repo's own `AGENTS.md` / `CLAUDE.md` and the docs and ADRs they point to for the touched area.
 
@@ -64,7 +64,7 @@ The pstack skills live under `~/loop/pstack/skills/<name>/SKILL.md`. The `Skill`
      For a task over several repos, `repo:` lists every key (`repo: web-app,api`) and `spec.md` covers the whole task. Also write one `parts/<repo key>.md` per repo in this same shape, with `repo: <that one key>`: the contract for the one Worker that builds that repo, complete enough to read alone, with the acceptance criteria that repo must meet. One Worker builds one repo and opens one MR, so no part may need an edit in another repo. In `design.md` add `## Parts`: the order the parts must merge in, and the contract between them (endpoint, payload, field names, flag) that each side builds against.
      Split agent work from anything only the owner can do (a manual walk on a real environment, a post on another team's issue). If part of the card is blocked and the rest is not, scope the spec to the unblocked phase and name the rest under "Out of scope" with what unblocks it.
 7. **Finish**: `~/loop/bin/loop-spec done <task>`. If it refuses, fix what it names and run it again. Then `~/loop/bin/loop-next`.
-8. **Blocked**: post one question comment in the format of the `loop-triage` skill (verified facts first; mention only the assignee; name who to ask), add label `needs:human` (labels are replace-all: keep every existing label), set `route=human`, then `~/loop/bin/loop-spec block <task> "<reason>"` and `~/loop/bin/loop-next`.
+8. **Blocked**: post one question comment in the format of the `jk-loop:triage` skill (verified facts first; mention only the assignee; name who to ask), add label `needs:human` (labels are replace-all: keep every existing label), set `route=human`, then `~/loop/bin/loop-spec block <task> "<reason>"` and `~/loop/bin/loop-next`.
 
 ## Final message
 
@@ -83,7 +83,7 @@ End with a Thai summary for the owner, short enough to read in a minute:
 1. <คำถาม> → default: <x>
 (หรือ "ไม่มี")
 **ไฟล์** — <package path>/design.md · spec.md
-รีวิว: /loop-design-review <task>
+รีวิว: /jk-loop:design-review <task>
 ```
 
 Then one line: `RESULT: proposed <task>` | `RESULT: blocked: <reason>`.

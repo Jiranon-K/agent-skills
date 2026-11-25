@@ -20,19 +20,19 @@ STATIONS = [
     ("VERDICT", False),
     ("YOU: MERGE", True),
 ]
-STATS = [("23", "skills"), ("55", "agents"), ("8", "rules"), ("15", "loop scripts")]
+STATS = [("16", "skills"), ("55", "agents"), ("8", "rules"), ("15", "loop scripts")]
 LOOP_ROWS = [
     [
-        ("/loop-start", "You start a round", False),
-        ("loop-triage", "Routes and picks tasks", False),
-        ("loop-design", "Proposes a spec and a sketch", False),
-        ("/loop-design-review", "You approve the design", True),
+        ("/jk-loop:start", "You start a round", False),
+        ("jk-loop:triage", "Routes and picks tasks", False),
+        ("jk-loop:design", "Proposes a spec and a sketch", False),
+        ("/jk-loop:design-review", "You approve the design", True),
     ],
     [
-        ("loop-work", "Builds by task type, opens the MR", False),
+        ("jk-loop:work", "Builds by task type, opens the MR", False),
         ("loop-verifier", "Runs each criterion: PASS or FAIL", False),
         ("loop-watch", "READY, WAITING or BLOCKED", False),
-        ("/merge-approved", "You merge a passed patch", True),
+        ("/jk-loop:merge-approved", "You merge a passed patch", True),
     ],
 ]
 
@@ -140,7 +140,7 @@ def draw_step(canvas, bounds, step):
     left, top, right, bottom = bounds
     middle = (left + right) / 2
     canvas.panel(bounds, ACCENT if is_gate else SURFACE, ACCENT if is_gate else RULE)
-    canvas.text((middle, top + 62), name, "GeistMono-Bold.ttf", 34, SURFACE if is_gate else INK, "mm")
+    canvas.text((middle, top + 62), name, "GeistMono-Bold.ttf", 29, SURFACE if is_gate else INK, "mm")
     canvas.text((middle, bottom + 46), caption, "InstrumentSans-Regular.ttf", 27, ACCENT if is_gate else MUTED, "mm")
 
 

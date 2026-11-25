@@ -3,9 +3,10 @@
 Personal Claude Code setup for a Mac, published with example values.
 
 - `skills/<bucket>/<name>/SKILL.md` — skills written or adapted here. Use example values only: no real names, hosts, IDs or ticket keys. Buckets:
-  `engineering`, `productivity`, `design`, `loop`, `personal`.
+  `productivity`, `design`, `personal`.
+- `plugins/jk-loop/` — the Loop skills as one plugin, called as `/jk-loop:<name>`. `.claude-plugin/marketplace.json` at the root lists it.
 - `claude/` — global `CLAUDE.md`, `AGENTS.md`, statusline, agents.
-- `loop/` — Loop Engineering runner and its scripts; sessions open in Orca, started by `/loop-start`. Logs, state and summaries stay on the machine.
+- `loop/` — Loop Engineering runner and its scripts; sessions open in Orca, started by `/jk-loop:start`. Logs, state and summaries stay on the machine.
 - `scheduled/` — scheduled-task prompts (daily-standup).
 - Skills available from a plugin are listed in `plugins.md`, never copied in.
 - Never commit secrets, `settings.json`, or anything under `~/loop/{logs,state,summaries}`.

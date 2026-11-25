@@ -23,7 +23,7 @@ Tasks in the `Triage` status are not ready: never route or pick them.
 
 ## Current sprint (the Loop works only on it)
 
-The Loop works only on tasks in the space's current sprint. A task outside it is not routed, commented on, designed, picked or reported, unless its key is listed under "Out-of-sprint tasks the owner asked for" below. Running a loop skill on a task by hand (`/loop-design <task>`, `/loop-work <task>`) is also the owner asking.
+The Loop works only on tasks in the space's current sprint. A task outside it is not routed, commented on, designed, picked or reported, unless its key is listed under "Out-of-sprint tasks the owner asked for" below. Running a loop skill on a task by hand (`/jk-loop:design <task>`, `/jk-loop:work <task>`) is also the owner asking.
 
 | Space | Sprint id | Name | Ends |
 |---|---|---|---|

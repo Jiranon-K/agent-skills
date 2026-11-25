@@ -18,7 +18,7 @@ The last line is one of:
   WAITING <reason>    nothing to fix: a pipeline still runs, needs:e2e waits for the owner, a merge-back is pending
   BLOCKED <reason>    something must change first: a failed pipeline, a conflict, an open thread, no current PASS verdict
 
-It asks `loop-merge --dry-run`, so READY means /merge-approved would go through.
+It asks `loop-merge --dry-run`, so READY means /jk-loop:merge-approved would go through.
 USAGE
   exit 2
 }

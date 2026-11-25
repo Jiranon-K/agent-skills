@@ -1,14 +1,14 @@
 #!/bin/bash
 # Starts the next Loop run now, detached from the caller: a Worker or Designer calls it when its task ends,
 # so a freed slot is filled the same day. loop-run.sh keeps its own run lock.
-# /loop-start stop leaves the file state/paused, and loop-next then starts nothing. bash 3.2 compatible.
+# /jk-loop:start stop leaves the file state/paused, and loop-next then starts nothing. bash 3.2 compatible.
 #
 #   loop-next
 set -u
 
 LOOP_DIR="${LOOP_DIR:-$HOME/loop}"
 if [ -e "$LOOP_DIR/state/paused" ]; then
-  echo "loop-next: the Loop is paused (/loop-start resume)"
+  echo "loop-next: the Loop is paused (/jk-loop:start resume)"
   exit 0
 fi
 mkdir -p "$LOOP_DIR/logs"

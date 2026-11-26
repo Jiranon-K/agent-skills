@@ -79,7 +79,7 @@ The Loop takes the tasks assigned to you from card to merge request. You act twi
 3. **Design.** `jk-loop:design` reads the code, compares at least two candidate designs, and proposes a spec. A bug gets a mechanism and a repro instead of a new structure.
 4. **Your design gate.** `/jk-loop:design-review` shows what will be built and a table of where the candidates differed, what was chosen, and why. Nothing is built until you approve.
 5. **Build.** `jk-loop:work` follows a playbook for the task's type and gives each kind of work to a named agent. It opens the MR ready, never as a Draft.
-6. **Verdict.** The `loop-verifier` agent, which did not write the code, runs each acceptance criterion against the pushed branch and posts `PASS`, `PASS+NOTES`, or `FAIL` on the MR.
+6. **Verdict.** The `loop-verifier` agent, which did not write the code, runs each acceptance criterion against the commits in the worktree before they are pushed, so a `FAIL` is fixed without starting a pipeline, and posts `PASS`, `PASS+NOTES`, or `FAIL` on the MR.
 7. **Watch.** `loop-watch` asks every gate of the merge and prints `READY`, `WAITING`, or `BLOCKED`. The Worker fixes a failed pipeline or answers a review thread itself, twice at most.
 8. **Your merge gate.** `/jk-loop:merge-approved` merges only a patch with a current pass.
 

@@ -7,13 +7,17 @@ STATE="$LOOP_DIR/bin/loop-state"
 
 usage() {
   cat >&2 <<'USAGE'
-loop-verdict owns the verifier's verdict on a Loop task's pushed branch.
+loop-verdict owns the verifier's verdict on a Loop task's patch.
 
-  loop-verdict <task> <PASS|PASS+NOTES|FAIL> <notes file>   record the verdict and post it on the task's MR
+  loop-verdict <task> <PASS|PASS+NOTES|FAIL> <notes file>   record the verdict, and post it when the task has an MR
+  loop-verdict <task> post <notes file>                     post the recorded verdict on the MR once the pushed patch matches it
   loop-verdict <task> check                                 print "current <verdict>", "stale <verdict>" or "none"
 
-A verdict covers one patch: the diff of origin/<branch> against its fork point from origin/<base>.
-A rebase that keeps the patch keeps the verdict; any change to the patch makes it stale.
+A verdict covers one patch: the diff of a branch against its fork point from origin/<base>.
+It is recorded on the committed HEAD of the task's worktree, pushed or not, so a fix needs no push
+to be judged. Without a worktree it is recorded on origin/<branch>. check always reads origin/<branch>:
+a push of the judged commits keeps the verdict, as does a rebase that keeps the patch; any change to
+the patch makes it stale.
 Only an agent that did not write the code records one.
 USAGE
   exit 2
@@ -29,21 +33,41 @@ resolve_task() {
   [ -d "$MAIN" ] && [ -n "$BASE" ] || die "no main checkout for $REPO"
 }
 
-fetch_refs() {
-  git -C "$MAIN" fetch -q origin "+refs/heads/$BASE:refs/remotes/origin/$BASE" "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" \
-    || die "could not fetch $BASE and $BRANCH: is $BRANCH pushed?"
+fetch_base() {
+  git -C "$MAIN" fetch -q origin "+refs/heads/$BASE:refs/remotes/origin/$BASE" || die "could not fetch $BASE"
 }
 
-patch_of_branch() {
-  local fork
-  fork=$(git -C "$MAIN" merge-base "refs/remotes/origin/$BASE" "refs/remotes/origin/$BRANCH") || die "$BRANCH shares no history with $BASE"
-  git -C "$MAIN" diff "$fork" "refs/remotes/origin/$BRANCH" | git patch-id --stable | cut -d' ' -f1
+fetch_branch() {
+  git -C "$MAIN" fetch -q origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" || die "could not fetch $BRANCH: is it pushed?"
+}
+
+patch_of() {
+  local dir="$1" ref="$2" fork
+  fork=$(git -C "$dir" merge-base "refs/remotes/origin/$BASE" "$ref") || die "$ref shares no history with $BASE"
+  git -C "$dir" diff "$fork" "$ref" | git patch-id --stable | cut -d' ' -f1
+}
+
+fetch_pushed() {
+  fetch_base
+  fetch_branch
+}
+
+pick_judged() {
+  local worktree
+  worktree=$("$STATE" path "$REPO" "$TASK") || die "no worktree path for $TASK"
+  if [ ! -d "$worktree" ]; then
+    fetch_branch
+    JUDGED_DIR="$MAIN" JUDGED_REF="refs/remotes/origin/$BRANCH"
+    return
+  fi
+  [ -z "$(git -C "$worktree" status --porcelain)" ] || die "$worktree has uncommitted changes: a verdict covers commits only"
+  JUDGED_DIR="$worktree" JUDGED_REF=HEAD
 }
 
 post_note() {
   local url rest host iid path host_var project
   url=$("$STATE" get "$TASK" mr) || url=""
-  [ -n "$url" ] || { echo "loop-verdict: $TASK has no MR yet, the verdict is kept in loop-state only" >&2; return 0; }
+  [ -n "$url" ] || return 1
   case "$url" in https://*/-/merge_requests/*) ;; *) die "loop-state mr is not a GitLab MR URL: $url" ;; esac
   rest="${url#https://}"
   host="${rest%%/*}"
@@ -55,27 +79,46 @@ post_note() {
   glab mr note create "$iid" -R "$project" --resolvable=false -m "$1" >/dev/null || die "could not post the verdict on MR !$iid"
 }
 
+note_text() {
+  echo "**Loop verdict: $1** · head \`$2\` · patch \`${3:0:12}\`"
+  echo
+  cat "$4"
+}
+
 record() {
   local verdict="$1" notes="$2" patch head status
   [ -s "$notes" ] || die "$notes is missing or empty: a verdict needs the checks it rests on"
-  fetch_refs
-  patch=$(patch_of_branch)
-  [ -n "$patch" ] || die "$BRANCH has no diff against $BASE"
-  head=$(git -C "$MAIN" rev-parse --short "refs/remotes/origin/$BRANCH")
+  fetch_base
+  pick_judged
+  patch=$(patch_of "$JUDGED_DIR" "$JUDGED_REF")
+  [ -n "$patch" ] || die "$TASK has no diff against $BASE"
+  head=$(git -C "$JUDGED_DIR" rev-parse --short "$JUDGED_REF")
   status=$("$STATE" get "$TASK" status)
-  post_note "**Loop verdict: $verdict** · head \`$head\` · patch \`${patch:0:12}\`
-
-$(cat "$notes")"
+  post_note "$(note_text "$verdict" "$head" "$patch" "$notes")" \
+    || echo "loop-verdict: $TASK has no MR yet: run 'loop-verdict $TASK post $notes' once it is open" >&2
   "$STATE" set "$TASK" "$status" "verdict=$verdict" "verdict_patch=$patch" || die "could not write the verdict to loop-state"
   echo "$verdict $patch"
+}
+
+post() {
+  local notes="$1" verdict patch head
+  [ -s "$notes" ] || die "$notes is missing or empty"
+  verdict=$("$STATE" get "$TASK" verdict) || verdict=""
+  [ -n "$verdict" ] || die "$TASK has no verdict to post"
+  fetch_pushed
+  patch=$(patch_of "$MAIN" "refs/remotes/origin/$BRANCH")
+  [ "$patch" = "$("$STATE" get "$TASK" verdict_patch)" ] || die "the pushed patch of $TASK is not the one the verdict covers"
+  head=$(git -C "$MAIN" rev-parse --short "refs/remotes/origin/$BRANCH")
+  post_note "$(note_text "$verdict" "$head" "$patch" "$notes")" || die "$TASK has no MR in loop-state"
+  echo "posted $verdict $patch"
 }
 
 check() {
   local verdict patch
   verdict=$("$STATE" get "$TASK" verdict) || verdict=""
   [ -n "$verdict" ] || { echo none; return 0; }
-  fetch_refs
-  patch=$(patch_of_branch)
+  fetch_pushed
+  patch=$(patch_of "$MAIN" "refs/remotes/origin/$BRANCH")
   if [ "$patch" = "$("$STATE" get "$TASK" verdict_patch)" ]; then echo "current $verdict"; else echo "stale $verdict"; fi
 }
 
@@ -85,6 +128,7 @@ case "$TASK" in ""|*/*|.*|-*) die "bad task key '$TASK'" ;; esac
 resolve_task
 case "$2" in
   check) [ $# -eq 2 ] || usage; check ;;
+  post) [ $# -eq 3 ] || usage; post "$3" ;;
   PASS|PASS+NOTES|FAIL) [ $# -eq 3 ] || usage; record "$2" "$3" ;;
   *) usage ;;
 esac

@@ -12,6 +12,7 @@ The user invoking this is the review. You present and record; you never decide. 
 2. `~/loop/bin/loop-spec status <task>` must print `proposed`. Otherwise say what it is and stop.
 3. Read `spec.md`, `design.md` and `decisions.tsv` in the package (`~/loop/bin/loop-spec path <task>`), and `get_task <task>` for the card's own acceptance criteria.
 4. **Present**, in this order, short:
+   - The original problem, under the heading `ปัญหาเดิม`: where the card came from, who hits the problem and what they see, then the mechanism behind it. Take it from the card's description and the design's `## Problem`; say which parts are confirmed and which are still a guess. For three or more moving parts, build the picture up as box diagrams, per `~/.claude/rules/explanation-style.md`.
    - What will be built, from the user's side, and what the owner's own part is.
    - The chosen shape in two or three sentences, then the design's `## What was chosen` table in Thai under the heading `สิ่งที่เลือก`, with the columns `จุดที่ design ต่างกัน`, `เลือก` and `เหตุผล`. A package written before that section existed has none: build the rows from `decisions.tsv` and the rationale. Then the cross-judge's verdict.
    - **Card vs spec**: every acceptance criterion the spec adds, drops or rewords against the card. Say "ตรงกับ card" when there is none.
